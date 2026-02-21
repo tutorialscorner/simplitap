@@ -499,113 +499,177 @@ app.get("/test-email", async (req, res) => {
 });
 
 // 3. AI Business Card Scanner
-app.post('/api/scan-card', bodyParser.json({ limit: '10mb' }), async (req, res) => {
+app.post("/api/scan-card", async (req, res) => {
     try {
-        const { image } = req.body; // Base64 image
-        if (!image) return res.status(400).json({ error: "No image provided" });
-
-        console.log("Processing AI Card Scan...");
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-            },
-            body: JSON.stringify({
-                model: "gpt-4o",
-                messages: [
-                    {
-                        role: "system",
-                        content: `You are a deterministic business card parser. Your job is to extract EXACTLY what is printed on the card.
-                        No guessing. No inference. No hallucination.
-
-                        CRITICAL RULES:
-                        1. The person's name:
-                           - Usually appears at top, larger or bold, 2–4 words.
-                           - May include titles like Dr., Mr., Ms.
-                           - Do NOT mistake institute/company names for the person's name.
-                        2. The business_name:
-                           - The organization the person works for.
-                           - Do NOT use department names as business_name.
-                           - Preserve exact spelling from the card.
-                        3. job_title:
-                           - Must be a designation (Professor, Manager, CEO, etc.).
-                           - Do NOT merge with department text.
-                        4. Phones:
-                           - Remove internal spaces.
-                           - Preserve + if present.
-                           - Include country code if present.
-                           - Put most prominent number in phone_1.
-                        5. Emails:
-                           - Must contain "@".
-                           - If two exist, academic or general email goes in email_2.
-                        6. Address:
-                           - Merge multiple lines into a single comma-separated string.
-                           - Include building/room info.
-                        7. General:
-                           - If ANY field is unclear or missing, return "-".
-                           - NEVER fabricate company names or use placeholders like "Acme Inc".
-                           - Provide a confidence score (0-100) and detect the language.`
-                    },
-                    {
-                        role: "user",
-                        content: [
-                            {
-                                type: "image_url",
-                                image_url: {
-                                    url: `data:image/jpeg;base64,${image}`
-                                }
-                            }
-                        ]
-                    }
-                ],
-                max_tokens: 1000,
-                temperature: 0,
-                response_format: {
-                    type: "json_schema",
-                    json_schema: {
-                        name: "business_card_schema",
-                        schema: {
-                            type: "object",
-                            properties: {
-                                name: { type: "string" },
-                                business_name: { type: "string" },
-                                job_title: { type: "string" },
-                                phone_1: { type: "string" },
-                                phone_2: { type: "string" },
-                                email_1: { type: "string" },
-                                email_2: { type: "string" },
-                                website: { type: "string" },
-                                address: { type: "string" },
-                                confidence_score: { type: "number" },
-                                detected_language: { type: "string" }
-                            },
-                            required: ["name", "business_name", "job_title", "phone_1", "phone_2", "email_1", "email_2", "website", "address", "confidence_score", "detected_language"],
-                            additionalProperties: false
-                        }
-                    }
-                }
-            })
-        });
-
-        const data = await response.json();
-        console.log("OpenAI Response received");
-
-        if (data.error) {
-            console.error("OpenAI Error:", data.error);
-            return res.status(500).json({ error: data.error.message });
+        const { image } = req.body;
+        if (!image) {
+            return res.status(400).json({ error: "No image provided" });
         }
 
-        const scanResult = JSON.parse(data.choices[0].message.content);
-        res.json({ success: true, data: scanResult });
+        console.log("🔍 Step 1: Extracting raw OCR text...");
 
+        // ============================
+        // STEP 1: RAW OCR EXTRACTION
+        // ============================
+        const ocrResponse = await fetch(
+            "https://api.openai.com/v1/chat/completions",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+                },
+                body: JSON.stringify({
+                    model: "gpt-4o",
+                    temperature: 0,
+                    max_tokens: 1500,
+                    messages: [
+                        {
+                            role: "system",
+                            content: `
+You are an OCR engine.
+Extract ALL visible text from the business card exactly as printed.
+Preserve line breaks.
+Do NOT interpret.
+Do NOT categorize.
+Do NOT correct spelling.
+Do NOT guess missing text.
+Return ONLY raw text.
+              `,
+                        },
+                        {
+                            role: "user",
+                            content: [
+                                {
+                                    type: "image_url",
+                                    image_url: {
+                                        url: `data:image/jpeg;base64,${image}`,
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                }),
+            }
+        );
+
+        const ocrData = await ocrResponse.json();
+
+        if (ocrData.error) {
+            console.error("OCR Error:", ocrData.error);
+            return res.status(500).json({ error: ocrData.error.message });
+        }
+
+        const rawText = ocrData.choices[0].message.content;
+
+        if (!rawText || rawText.trim() === "") {
+            return res.status(400).json({ error: "No text detected on card" });
+        }
+
+        console.log("🧠 Step 2: Parsing structured data...");
+
+        // ============================
+        // STEP 2: STRUCTURED PARSER
+        // ============================
+        const parseResponse = await fetch(
+            "https://api.openai.com/v1/chat/completions",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+                },
+                body: JSON.stringify({
+                    model: "gpt-4o-mini",
+                    temperature: 0,
+                    response_format: {
+                        type: "json_schema",
+                        json_schema: {
+                            name: "business_card_schema",
+                            schema: {
+                                type: "object",
+                                properties: {
+                                    name: { type: "string" },
+                                    business_name: { type: "string" },
+                                    job_title: { type: "string" },
+                                    phone_1: { type: "string" },
+                                    phone_2: { type: "string" },
+                                    email_1: { type: "string" },
+                                    email_2: { type: "string" },
+                                    website: { type: "string" },
+                                    address: { type: "string" },
+                                    confidence_score: { type: "number" },
+                                    detected_language: { type: "string" },
+                                },
+                                required: [
+                                    "name",
+                                    "business_name",
+                                    "job_title",
+                                    "phone_1",
+                                    "phone_2",
+                                    "email_1",
+                                    "email_2",
+                                    "website",
+                                    "address",
+                                    "confidence_score",
+                                    "detected_language",
+                                ],
+                                additionalProperties: false,
+                            },
+                        },
+                    },
+                    messages: [
+                        {
+                            role: "system",
+                            content: `
+You are a strict deterministic parser.
+
+CRITICAL RULES:
+- Only use the provided text.
+- Do NOT invent missing information.
+- If a field is missing or unclear, return "-".
+- Never expand abbreviations.
+- Never fix spelling.
+- Never assume country codes.
+- Never infer company names.
+- Do NOT merge department into business_name.
+- Emails must contain "@".
+- Phones must remove internal spaces.
+- Address should merge multiple lines into one comma-separated string.
+- Provide confidence score (0-100).
+- Detect primary language from text.
+              `,
+                        },
+                        {
+                            role: "user",
+                            content: rawText,
+                        },
+                    ],
+                }),
+            }
+        );
+
+        const parseData = await parseResponse.json();
+
+        if (parseData.error) {
+            console.error("Parsing Error:", parseData.error);
+            return res.status(500).json({ error: parseData.error.message });
+        }
+
+        const structuredData = JSON.parse(parseData.choices[0].message.content);
+
+        console.log("✅ Card scan complete");
+
+        return res.json({
+            success: true,
+            raw_text: rawText,
+            data: structuredData,
+        });
     } catch (err) {
         console.error("Scan Error:", err);
-        res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: err.message });
     }
 });
-
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
 });
