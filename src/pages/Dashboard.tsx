@@ -387,11 +387,10 @@ const Dashboard = () => {
   }, [rawEvents, timeRange]);
 
 
-  // --- Updated Link Logic: Always show Primary/Default Card Link ---
-  // The user wants one consistent URL for their profile, pointing to the default card.
-  const primaryCard = cards.find(c => c.is_primary) || cards[0];
-  const displayUsername = primaryCard?.username || userData?.username;
-  const displayId = primaryCard?.id || userData?.id;
+  // --- Updated Link Logic: Dynamic based on currently selected card ---
+  const currentActive = cards[activeCardIndex] || cards[0];
+  const displayUsername = currentActive?.username || userData?.username;
+  const displayId = currentActive?.id || userData?.id;
 
   const cardLink = user
     ? displayUsername
@@ -637,6 +636,14 @@ const Dashboard = () => {
         .eq('id', cardId);
 
       if (error) throw error;
+
+      // Migrate Physical Card Links: Make physical cards "follow" the primary identity
+      if (currentPrimary) {
+        await supabaseClient
+          .from('cards')
+          .update({ profile_uid: cardId })
+          .eq('profile_uid', currentPrimary.id);
+      }
 
       toast({
         title: "Default Card Set",
