@@ -392,10 +392,13 @@ const Dashboard = () => {
   const displayUsername = currentActive?.username || userData?.username;
   const displayId = currentActive?.id || userData?.id;
 
+  // Determine if we should show an identity-linked URL or a record-linked URL
+  const isCustomUsername = displayUsername && !displayUsername.startsWith('user_');
+
   const cardLink = user
-    ? displayUsername
+    ? isCustomUsername
       ? `https://simplifytap.in/${displayUsername}`
-      : `${window.location.origin}/card/${displayId || user.id}`
+      : `${window.location.origin}/card/${user.id}` // Use Clerk ID for "Identity-based" sharing
     : "";
 
   const displayLinkText = displayUsername
@@ -589,47 +592,44 @@ const Dashboard = () => {
   const handleSetPrimary = async (cardId: string) => {
     if (!supabaseClient || !user) return;
     try {
-      // Get current primary card (to check for username)
-      const { data: currentPrimary, error: oldError } = await supabaseClient
+      // 1. Fetch all profiles for this user to ensure we have the full picture
+      const { data: allProfiles, error: fetchError } = await supabaseClient
         .from('profiles')
-        .select("id, username")
-        .eq('is_primary', true)
-        .eq('clerk_user_id', user.id)
-        .maybeSingle();
+        .select("id, username, is_primary")
+        .eq('clerk_user_id', user.id);
 
-      if (oldError) console.error("Could not find old primary:", oldError);
+      if (fetchError) throw fetchError;
 
-      let usernameToMove = null;
-      if (currentPrimary && currentPrimary.username) {
-        // Simple check: is it a 'custom' username or a random generated one?
-        // Random ones usually end in 3 digits and have name. Assuming any username user sets is valuable.
-        // Let's move ANY username if it's set.
-        usernameToMove = currentPrimary.username;
-      }
+      const oldPrimary = allProfiles?.find(p => p.is_primary);
 
-      // 1. Unset all others
+      // Look for the "Best" username to move (the one on the old primary or the first custom one found)
+      let usernameToMove = oldPrimary?.username || allProfiles?.find(p => p.username && !p.username.startsWith('user_'))?.username;
+
+      // 2. Unset primary status from all profiles
       await supabaseClient
         .from('profiles')
         .update({ is_primary: false })
         .eq('clerk_user_id', user.id);
 
-      // 2. Set this one
-      // If we are moving a username, we should update it here
+      // 3. Prep updates for the new primary
       const updates: any = { is_primary: true };
 
-      if (usernameToMove && currentPrimary && currentPrimary.id !== cardId) {
-        // We need to clear the old one first to avoid unique constraint if any (Supabase usually enforces unique on username)
-        // Let's generate a temporary ID for the old card to be safe.
-        const tempUsername = `user_${currentPrimary.id.split('-')[0]}_${Math.floor(Math.random() * 1000)}`;
+      // 4. Identity Migration: Move the primary username logic
+      if (usernameToMove) {
+        // Find who currently owns this username and give them a temporary one
+        const currentOwner = allProfiles?.find(p => p.username === usernameToMove);
+        if (currentOwner && currentOwner.id !== cardId) {
+          const tempUsername = `user_${currentOwner.id.split('-')[0]}_${Math.floor(Math.random() * 1000)}`;
+          await supabaseClient
+            .from('profiles')
+            .update({ username: tempUsername })
+            .eq('id', currentOwner.id);
 
-        await supabaseClient
-          .from('profiles')
-          .update({ username: tempUsername })
-          .eq('id', currentPrimary.id);
-
-        updates.username = usernameToMove;
+          updates.username = usernameToMove;
+        }
       }
 
+      // 5. Finalize the new Primary profile
       const { error } = await supabaseClient
         .from('profiles')
         .update(updates)
@@ -637,17 +637,20 @@ const Dashboard = () => {
 
       if (error) throw error;
 
-      // Migrate Physical Card Links: Make physical cards "follow" the primary identity
-      if (currentPrimary) {
+      // 6. Global Sync: Re-link EVERY physical card owned by this user to the new Primary profile
+      const allProfileIds = allProfiles?.map(p => p.id) || [];
+      if (allProfileIds.length > 0) {
         await supabaseClient
           .from('cards')
-          .update({ profile_uid: cardId })
-          .eq('profile_uid', currentPrimary.id);
+          .update({ profile_uid: cardId, status: 'ACTIVATED' })
+          .in('profile_uid', allProfileIds);
+
+        console.log(`Verified Identity Sync: Redirected cards from ${allProfileIds.length} profiles to new primary.`);
       }
 
       toast({
         title: "Default Card Set",
-        description: `This card is now your primary profile.${usernameToMove ? " Username moved." : ""}`,
+        description: `This card is now your primary profile. All linked cards synced.`,
       });
 
       // Refresh
