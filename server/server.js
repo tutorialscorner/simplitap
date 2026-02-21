@@ -517,19 +517,36 @@ app.post('/api/scan-card', bodyParser.json({ limit: '10mb' }), async (req, res) 
                 messages: [
                     {
                         role: "system",
-                        content: `Extract structured contact information from the provided business card image.
-                        Strictly follow these rules:
-                        1. Extract ONLY information clearly visible in the image.
-                        2. Do NOT guess or invent missing values.
-                        3. If a field is not present, return "-" (dash).
-                        4. If multiple phone numbers are found: Put the primary/mobile in phone_1, second in phone_2.
-                        5. If multiple emails are found: Put primary in email_1, second in email_2.
-                        6. Combine multi-line addresses into a single string separated by commas.
-                        7. Ignore social media handles unless labeled as contact.
-                        8. Ignore taglines/marketing slogans.
-                        9. Do not confuse logo text with business_name unless it clearly represents the company.
-                        10. Preserve original capitalization.
-                        11. Provide a confidence score (0-100) and detect the language.`
+                        content: `You are a deterministic business card parser. Your job is to extract EXACTLY what is printed on the card.
+                        No guessing. No inference. No hallucination.
+
+                        CRITICAL RULES:
+                        1. The person's name:
+                           - Usually appears at top, larger or bold, 2–4 words.
+                           - May include titles like Dr., Mr., Ms.
+                           - Do NOT mistake institute/company names for the person's name.
+                        2. The business_name:
+                           - The organization the person works for.
+                           - Do NOT use department names as business_name.
+                           - Preserve exact spelling from the card.
+                        3. job_title:
+                           - Must be a designation (Professor, Manager, CEO, etc.).
+                           - Do NOT merge with department text.
+                        4. Phones:
+                           - Remove internal spaces.
+                           - Preserve + if present.
+                           - Include country code if present.
+                           - Put most prominent number in phone_1.
+                        5. Emails:
+                           - Must contain "@".
+                           - If two exist, academic or general email goes in email_2.
+                        6. Address:
+                           - Merge multiple lines into a single comma-separated string.
+                           - Include building/room info.
+                        7. General:
+                           - If ANY field is unclear or missing, return "-".
+                           - NEVER fabricate company names or use placeholders like "Acme Inc".
+                           - Provide a confidence score (0-100) and detect the language.`
                     },
                     {
                         role: "user",
