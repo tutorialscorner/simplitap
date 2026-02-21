@@ -499,10 +499,9 @@ app.get("/test-email", async (req, res) => {
 });
 
 // 3. AI Business Card Scanner
-
-// =========================
-// REGEX UTILITIES
-// =========================
+// =====================
+// REGEX HELPERS
+// =====================
 function extractEmails(text) {
     return text.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi) || [];
 }
@@ -516,11 +515,12 @@ function extractWebsite(text) {
     return match ? match[0] : null;
 }
 
-// =========================
-// POST VALIDATION ENGINE
-// =========================
-function validateAndCorrect(data, rawText) {
-    // Normalize phone
+// =====================
+// VALIDATION ENGINE
+// =====================
+function validateAndCorrect(data) {
+
+    // Normalize phone spacing
     if (data.phone_1 && data.phone_1 !== "-") {
         data.phone_1 = data.phone_1.replace(/\s+/g, "");
     }
@@ -537,9 +537,9 @@ function validateAndCorrect(data, rawText) {
     // Company correction using website
     if (data.website && data.website !== "-") {
         const clean = data.website.replace(/^https?:\/\//, "").replace("www.", "");
-        const domainBase = clean.split(".")[0];
+        const base = clean.split(".")[0];
 
-        if (!data.business_name.toLowerCase().includes(domainBase.toLowerCase())) {
+        if (!data.business_name.toLowerCase().includes(base.toLowerCase())) {
             data.business_name = clean;
         }
     }
@@ -547,19 +547,23 @@ function validateAndCorrect(data, rawText) {
     return data;
 }
 
-// =========================
+// =====================
 // MAIN ROUTE
-// =========================
+// =====================
 app.post("/api/scan-card", async (req, res) => {
     try {
         const { image } = req.body;
-        if (!image) return res.status(400).json({ error: "No image provided" });
+        if (!image) {
+            return res.status(400).json({ error: "No image provided" });
+        }
 
-        // =========================
+        console.log("STEP 1: OCR using gpt-4o (Responses API)");
+
+        // =====================
         // STEP 1 — OCR
-        // =========================
+        // =====================
         const ocrResponse = await fetch(
-            "https://api.openai.com/v1/chat/completions",
+            "https://api.openai.com/v1/responses",
             {
                 method: "POST",
                 headers: {
@@ -568,25 +572,17 @@ app.post("/api/scan-card", async (req, res) => {
                 },
                 body: JSON.stringify({
                     model: "gpt-4o",
-                    temperature: 0,
-                    messages: [
-                        {
-                            role: "system",
-                            content: `
-You are an OCR engine.
-Extract all visible text exactly as printed.
-Preserve line breaks.
-Return only raw text.
-              `
-                        },
+                    input: [
                         {
                             role: "user",
                             content: [
                                 {
-                                    type: "image_url",
-                                    image_url: {
-                                        url: `data:image/jpeg;base64,${image}`
-                                    }
+                                    type: "input_text",
+                                    text: "Extract ALL visible text exactly as printed. Preserve line breaks. Do not interpret."
+                                },
+                                {
+                                    type: "input_image",
+                                    image_url: `data:image/jpeg;base64,${image}`
                                 }
                             ]
                         }
@@ -596,24 +592,31 @@ Return only raw text.
         );
 
         const ocrData = await ocrResponse.json();
-        const rawText = ocrData.choices?.[0]?.message?.content;
 
-        if (!rawText) {
-            return res.status(400).json({ error: "No text detected" });
+        if (ocrData.error) {
+            console.error("OCR API Error:", ocrData.error);
+            return res.status(500).json({ error: ocrData.error.message || "OCR service error" });
         }
 
-        // =========================
-        // STEP 2 — REGEX EXTRACTION
-        // =========================
+        const rawText = ocrData.output_text;
+
+        if (!rawText) {
+            return res.status(400).json({ error: "No text detected on card" });
+        }
+
+        console.log("STEP 2: Deterministic extraction (regex)");
+
         const emails = extractEmails(rawText);
         const phones = extractPhones(rawText);
         const website = extractWebsite(rawText);
 
-        // =========================
-        // STEP 3 — LLM SEMANTIC CLASSIFIER
-        // =========================
+        console.log("STEP 3: Semantic structured extraction (gpt-4o-mini)");
+
+        // =====================
+        // STEP 3 — STRUCTURED EXTRACTION
+        // =====================
         const parseResponse = await fetch(
-            "https://api.openai.com/v1/chat/completions",
+            "https://api.openai.com/v1/responses",
             {
                 method: "POST",
                 headers: {
@@ -622,70 +625,70 @@ Return only raw text.
                 },
                 body: JSON.stringify({
                     model: "gpt-4o-mini",
-                    temperature: 0.4,
-                    response_format: {
-                        type: "json_schema",
-                        json_schema: {
-                            name: "schema",
-                            schema: {
-                                type: "object",
-                                properties: {
-                                    name: { type: "string" },
-                                    business_name: { type: "string" },
-                                    job_title: { type: "string" },
-                                    address: { type: "string" },
-                                    detected_language: { type: "string" }
-                                },
-                                required: [
-                                    "name",
-                                    "business_name",
-                                    "job_title",
-                                    "address",
-                                    "detected_language"
-                                ]
-                            }
-                        }
-                    },
-                    messages: [
-                        {
-                            role: "system",
-                            content: `
-Extract:
-- PERSON NAME (must contain space)
-- COMPANY NAME (not slogan)
-- JOB TITLE (designation only)
-- ADDRESS (merged)
-Use only provided text.
-Never guess.
-              `
-                        },
-                        { role: "user", content: rawText }
-                    ]
+                    input: `
+Extract the following from this business card text and return JSON only:
+
+{
+  "name": "",
+  "business_name": "",
+  "job_title": "",
+  "address": "",
+  "detected_language": ""
+}
+
+Rules:
+- Name must contain at least two words.
+- Ignore slogans like "Learn to Earn".
+- Ignore marketing lines like "Trusted by 1200+ learners".
+- Business name must not be slogan.
+- Job title must be designation only.
+- Address must be merged into one line.
+- Do not guess missing data. Use "-" if missing.
+
+TEXT:
+${rawText}
+          `
                 })
             }
         );
 
-        const parsed = await parseResponse.json();
-        const structured = JSON.parse(parsed?.choices?.[0]?.message?.content || "{}");
+        const parseData = await parseResponse.json();
 
-        // =========================
-        // STEP 4 — MERGE DETERMINISTIC DATA
-        // =========================
+        if (parseData.error) {
+            console.error("Parse API Error:", parseData.error);
+            return res.status(500).json({ error: parseData.error.message || "Parse service error" });
+        }
+
+        let structured = {};
+        try {
+            // Clean markdown blocks if present
+            const cleanJson = parseData.output_text.replace(/```json/g, "").replace(/```/g, "").trim();
+            structured = JSON.parse(cleanJson);
+        } catch (err) {
+            console.error("JSON Parse Error:", err, "Raw:", parseData.output_text);
+            return res.status(500).json({ error: "Failed to parse structured output" });
+        }
+
+        // =====================
+        // STEP 4 — MERGE + VALIDATE
+        // =====================
         const finalData = {
-            name: structured?.name || "-",
-            business_name: structured?.business_name || "-",
-            job_title: structured?.job_title || "-",
+            name: structured.name || "-",
+            business_name: structured.business_name || "-",
+            job_title: structured.job_title || "-",
             phone_1: phones[0]?.replace(/\s+/g, "") || "-",
             phone_2: phones[1]?.replace(/\s+/g, "") || "-",
             email_1: emails[0] || "-",
             email_2: emails[1] || "-",
             website: website || "-",
-            address: structured?.address || "-",
+            address: structured.address || "-",
             confidence_score: 95,
-            detected_language: structured?.detected_language || "Unknown"
+            detected_language: structured.detected_language || "Unknown"
         };
 
-        const validated = validateAndCorrect(finalData, rawText);
+        const validated = validateAndCorrect(finalData);
+
+        console.log("Card scan completed successfully.");
 
         return res.json({
             success: true,
@@ -694,7 +697,7 @@ Never guess.
         });
 
     } catch (err) {
-        console.error(err);
+        console.error("Scan error:", err);
         return res.status(500).json({ error: err.message });
     }
 });
