@@ -3,14 +3,16 @@ import { DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Phone, Mail, Globe, Building, User, Trash2, ArrowRight, Plus, ArrowLeft, Save, FileText } from 'lucide-react';
+import { Search, Phone, Mail, Globe, Building, User, Trash2, ArrowRight, Plus, ArrowLeft, Save, FileText, FileSpreadsheet } from 'lucide-react';
+import { format } from 'date-fns';
 import { useSupabase } from '@/hooks/useSupabase';
 import { useUser } from '@clerk/clerk-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from 'sonner';
-import { Sparkles, Camera, Loader2 as Spinner } from 'lucide-react';
+import { Sparkles, Camera, Loader2 as Spinner, Download } from 'lucide-react';
 import { CONFIG } from '@/lib/config';
+import { exportToCSV } from '@/lib/export';
 
 export const ContactsManager = () => {
     const { user } = useUser();
@@ -233,6 +235,24 @@ export const ContactsManager = () => {
         });
     };
 
+    const handleExportExcel = () => {
+        const exportData = contacts.map(c => ({
+            Name: c.name || '-',
+            Business: c.business_name || c.company || '-',
+            JobTitle: c.job_title || '-',
+            Phone1: c.phone || '-',
+            Phone2: c.phone_2 || '-',
+            Email1: c.email || '-',
+            Email2: c.email_2 || '-',
+            Website: c.website || '-',
+            Address: c.address || '-',
+            Notes: c.notes || '-',
+            Type: c.is_exchange ? 'Exchanged' : 'Manual/Scanned',
+            Date: format(new Date(c.created_at), "MMM d, yyyy h:mm a")
+        }));
+        exportToCSV(exportData, `My_Contacts_${format(new Date(), "yyyy-MM-dd")}`);
+    };
+
     return (
         <DialogContent className="sm:max-w-3xl h-[80vh] flex flex-col p-0 text-slate-900">
             <DialogHeader className="p-6 pb-2">
@@ -253,7 +273,16 @@ export const ContactsManager = () => {
                                 Contacts Manager
                             </span>
                             <div className="flex items-center gap-2 mr-8">
-                                <span className="text-sm font-normal text-muted-foreground mr-2">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={handleExportExcel}
+                                    className="h-8 gap-2 border-green-600 text-green-700 hover:bg-green-50"
+                                >
+                                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                                    Export Excel
+                                </Button>
+                                <span className="text-sm font-normal text-muted-foreground mx-1">
                                     {contacts.length} Contacts
                                 </span>
 

@@ -5,8 +5,9 @@ import { Footer } from "@/components/simplify-tap/Footer";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, Briefcase, Building2, Calendar, Download, Trash2, Loader2, Users, Phone } from "lucide-react";
+import { Mail, Briefcase, Building2, Calendar, Download, Trash2, Loader2, Users, Phone, FileSpreadsheet } from "lucide-react";
 import { format } from "date-fns";
+import { exportToCSV } from "@/lib/export";
 
 interface ContactExchange {
     id: string;
@@ -102,9 +103,21 @@ const ExchangedContacts = () => {
     };
 
     const downloadAllVCards = () => {
-        contacts.forEach((contact) => {
-            setTimeout(() => handleDownloadVCard(contact), 100);
+        contacts.forEach((contact, index) => {
+            setTimeout(() => handleDownloadVCard(contact), index * 200);
         });
+    };
+
+    const handleExportExcel = () => {
+        const exportData = contacts.map(c => ({
+            Name: c.visitor_name,
+            Email: c.visitor_email,
+            Phone: c.visitor_phone || '-',
+            JobTitle: c.visitor_job_title || '-',
+            Company: c.visitor_company || '-',
+            Date: format(new Date(c.created_at), "MMM d, yyyy h:mm a")
+        }));
+        exportToCSV(exportData, `Exchanged_Contacts_${format(new Date(), "yyyy-MM-dd")}`);
     };
 
     if (loading) {
@@ -132,14 +145,24 @@ const ExchangedContacts = () => {
                                 Exchanged Contacts
                             </h1>
                             {contacts.length > 0 && (
-                                <Button
-                                    onClick={downloadAllVCards}
-                                    variant="outline"
-                                    className="gap-2"
-                                >
-                                    <Download className="w-4 h-4" />
-                                    Download All
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button
+                                        onClick={handleExportExcel}
+                                        variant="outline"
+                                        className="gap-2 border-green-600 text-green-700 hover:bg-green-50"
+                                    >
+                                        <FileSpreadsheet className="w-4 h-4" />
+                                        Export to Excel
+                                    </Button>
+                                    <Button
+                                        onClick={downloadAllVCards}
+                                        variant="outline"
+                                        className="gap-2"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                        Download All (vCard)
+                                    </Button>
+                                </div>
                             )}
                         </div>
                         <p className="text-slate-600">

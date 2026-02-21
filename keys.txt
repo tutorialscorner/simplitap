@@ -1,0 +1,1 @@
+id,clerk_user_id,first_name,last_name,job_title,company,created_at,updated_at,bio,phone,email,username,website,linkedin,X,Instagram,map_link,card_mail,avatar_url,banner_url,theme_color,views,clicks,is_premium,company_logo_url,team_id,social_links,style,razorpay_subscription_id,razorpay_customer_id,plan_type,subscription_status,current_period_end,is_locked
