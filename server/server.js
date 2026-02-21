@@ -516,25 +516,24 @@ app.post('/api/scan-card', bodyParser.json({ limit: '10mb' }), async (req, res) 
                 model: "gpt-4o",
                 messages: [
                     {
+                        role: "system",
+                        content: `Extract structured contact information from the provided business card image.
+                        Strictly follow these rules:
+                        1. Extract ONLY information clearly visible in the image.
+                        2. Do NOT guess or invent missing values.
+                        3. If a field is not present, return "-" (dash).
+                        4. If multiple phone numbers are found: Put the primary/mobile in phone_1, second in phone_2.
+                        5. If multiple emails are found: Put primary in email_1, second in email_2.
+                        6. Combine multi-line addresses into a single string separated by commas.
+                        7. Ignore social media handles unless labeled as contact.
+                        8. Ignore taglines/marketing slogans.
+                        9. Do not confuse logo text with business_name unless it clearly represents the company.
+                        10. Preserve original capitalization.
+                        11. Provide a confidence score (0-100) and detect the language.`
+                    },
+                    {
                         role: "user",
                         content: [
-                            {
-                                type: "text",
-                                text: `Extract contact information from this business card image. 
-                                Return a JSON object with strictly these keys: 
-                                - name (Full Name)
-                                - business_name (Company/Business Name)
-                                - job_title
-                                - phone_1 (Primary phone)
-                                - phone_2 (Secondary phone, use '-' if not found)
-                                - email_1 (Primary email)
-                                - email_2 (Secondary email, use '-' if not found)
-                                - website
-                                - address (Full physical address)
-                                
-                                If only one phone or email is found, put it in _1 and set _2 to '-'.
-                                Do not include any markdown or extra text, just the raw JSON.`
-                            },
                             {
                                 type: "image_url",
                                 image_url: {
@@ -544,8 +543,32 @@ app.post('/api/scan-card', bodyParser.json({ limit: '10mb' }), async (req, res) 
                         ]
                     }
                 ],
-                max_tokens: 500,
-                response_format: { type: "json_object" }
+                max_tokens: 1000,
+                temperature: 0,
+                response_format: {
+                    type: "json_schema",
+                    json_schema: {
+                        name: "business_card_schema",
+                        schema: {
+                            type: "object",
+                            properties: {
+                                name: { type: "string" },
+                                business_name: { type: "string" },
+                                job_title: { type: "string" },
+                                phone_1: { type: "string" },
+                                phone_2: { type: "string" },
+                                email_1: { type: "string" },
+                                email_2: { type: "string" },
+                                website: { type: "string" },
+                                address: { type: "string" },
+                                confidence_score: { type: "number" },
+                                detected_language: { type: "string" }
+                            },
+                            required: ["name", "business_name", "job_title", "phone_1", "phone_2", "email_1", "email_2", "website", "address", "confidence_score", "detected_language"],
+                            additionalProperties: false
+                        }
+                    }
+                }
             })
         });
 

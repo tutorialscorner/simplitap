@@ -130,6 +130,8 @@ export const ContactsManager = () => {
                 const result = await response.json();
                 if (result.success) {
                     const data = result.data;
+                    const confidenceNote = data.confidence_score ? ` (AI Confidence: ${data.confidence_score}%, Lang: ${data.detected_language})` : '';
+
                     setNewContact({
                         name: data.name || '',
                         company: data.business_name || '',
@@ -141,9 +143,14 @@ export const ContactsManager = () => {
                         website: data.website || '',
                         address: data.address || '',
                         business_name: data.business_name || '',
-                        notes: `Scanned via AI on ${new Date().toLocaleDateString()}`
+                        notes: `Scanned via AI on ${new Date().toLocaleDateString()}${confidenceNote}`
                     });
-                    toast.success("Card scanned successfully! Please verify details.");
+
+                    if (data.confidence_score && data.confidence_score < 70) {
+                        toast.warning(`Scan complete, but AI confidence is low (${data.confidence_score}%). Please double-check details.`);
+                    } else {
+                        toast.success("Card scanned successfully! Please verify details.");
+                    }
                 } else {
                     toast.error(result.error || "AI failed to scan card");
                 }
