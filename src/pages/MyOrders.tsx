@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { Navbar } from "@/components/simplify-tap/Navbar";
+import { Footer } from "@/components/simplify-tap/Footer";
 import { useUser } from "@clerk/clerk-react";
 import { useSupabase } from "@/hooks/useSupabase";
 import { Button } from "@/components/ui/button";
@@ -226,6 +227,7 @@ const MyOrders = () => {
                     </div>
                 )}
             </main>
+            <Footer />
         </div>
     );
 };

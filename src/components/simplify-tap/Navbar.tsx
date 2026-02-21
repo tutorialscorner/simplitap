@@ -13,8 +13,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { User, LogOut, LayoutDashboard, CreditCard, Menu, X, ChevronRight, ShoppingCart, ShoppingBag } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import { useCart } from "@/context/CartContext";
+import logo from "@/assets/simplify-tap-logo.png";
 
-const logo = "https://image2url.com/images/1766048702496-c162cdbc-a508-4446-afbc-21e8ac31403a.jpg";
+
 
 export const Navbar = () => {
   const navigate = useNavigate();
@@ -81,12 +82,38 @@ export const Navbar = () => {
   }, [location.pathname, user, isSignedIn]); // Re-check on nav change
 
   const navLinks = [
-    { name: "Pricing", href: "/pricing" },
-    { name: "Plus", href: "/plus", premium: true },
-    { name: "Teams", href: "/teams" },
-    { name: "Activate Card", href: "/activate" },
     { name: "NFC Products", href: "/nfc" },
-  ].filter(link => !(link.name === "Plus" && isPlusUser));
+    { name: "Pricing", href: "/pricing" },
+    { name: "Contact", href: "/contact" },
+    // Only show Team Dashboard if user has a team_id (checked via isTeam derived from checking isPremium+isTeam logic above, but let's refine)
+  ];
+
+  // Logic to determine if "Team Dashboard" should be shown
+  // The existing checkPlanStatus sets isPlusUser. We need a state for isTeamUser.
+  const [isTeamUser, setIsTeamUser] = useState(false);
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      setIsTeamUser(false);
+      return;
+    }
+    const checkTeam = () => {
+      try {
+        const savedData = localStorage.getItem("user_card_data");
+        if (savedData) {
+          const data = JSON.parse(savedData);
+          setIsTeamUser(!!data.team_id);
+        }
+      } catch (e) { }
+    };
+    checkTeam();
+    window.addEventListener('local-storage-update', checkTeam);
+    return () => window.removeEventListener('local-storage-update', checkTeam);
+  }, [isSignedIn]);
+
+  if (isTeamUser) {
+    navLinks.push({ name: "Team Dashboard", href: "/teams" });
+  }
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border transition-all duration-300 animate-navbar-slide-down">
@@ -163,6 +190,12 @@ export const Navbar = () => {
                   <DropdownMenuItem>
                     <CreditCard className="mr-2 h-4 w-4" />
                     <span>Edit Digital Card</span>
+                  </DropdownMenuItem>
+                </Link>
+                <Link to="/username-claim">
+                  <DropdownMenuItem>
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Choose Username</span>
                   </DropdownMenuItem>
                 </Link>
                 <DropdownMenuSeparator />

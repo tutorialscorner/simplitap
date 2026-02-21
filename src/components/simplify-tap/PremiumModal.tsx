@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useUser } from "@clerk/clerk-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Check, Crown, Sparkles } from "lucide-react";
+import { Check, Crown } from "lucide-react";
 
 interface PremiumModalProps {
   open: boolean;
@@ -19,8 +20,22 @@ const features = [
 ];
 
 export const PremiumModal = ({ open, onOpenChange }: PremiumModalProps) => {
+  const navigate = useNavigate();
+  const { isSignedIn } = useUser();
+
   const handleUpgrade = () => {
-    window.location.href = "/plus";
+    onOpenChange(false);
+    if (!isSignedIn) {
+      navigate("/create");
+      return;
+    }
+    navigate("/pricing");
+  };
+
+  const handleCompare = () => {
+    onOpenChange(false);
+    window.scrollTo(0, 0);
+    navigate("/pricing");
   };
 
   return (
@@ -62,8 +77,16 @@ export const PremiumModal = ({ open, onOpenChange }: PremiumModalProps) => {
             </p>
           </div>
 
-          <Button onClick={handleUpgrade} className="w-full mb-3" size="lg">
+          <Button onClick={handleUpgrade} className="w-full mb-2" size="lg">
             Get Plus
+          </Button>
+
+          <Button
+            variant="ghost"
+            onClick={handleCompare}
+            className="w-full mb-3 text-sm text-slate-500 font-medium"
+          >
+            Compare Plans
           </Button>
 
           <button

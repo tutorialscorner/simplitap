@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Navbar } from "@/components/simplify-tap/Navbar";
+import { Footer } from "@/components/simplify-tap/Footer";
 import { ArrowRight, Layout, Building2, BarChart3, ShieldCheck, Check, Users, Crown, Lock, Palette, Image as ImageIcon, Plus, Minus, Loader2, LogOut, AlertTriangle, Trash2 } from "lucide-react";
 import { useUser, useAuth } from "@clerk/clerk-react";
 import { useSupabase } from "@/hooks/useSupabase";
@@ -29,6 +30,12 @@ const Teams = () => {
 
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (isLoaded && !isSignedIn) {
+            navigate("/create");
+        }
+    }, [isLoaded, isSignedIn, navigate]);
     const [team, setTeam] = useState<any>(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [accessCode, setAccessCode] = useState("");
@@ -65,6 +72,17 @@ const Teams = () => {
         }
     }, [user]);
 
+    // Safety: Force stop loading after 8 seconds
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (loading) {
+                console.warn("Teams: Loading timed out, forcing render.");
+                setLoading(false);
+            }
+        }, 8000);
+        return () => clearTimeout(timer);
+    }, [loading]);
+
     // Fetch Team Data
     useEffect(() => {
         const fetchTeamData = async () => {
@@ -75,10 +93,12 @@ const Teams = () => {
 
             try {
                 // 1. Get Profile to see WHICH team user is currently "in"
-                const { data: profiles } = await authenticatedClient
+                const { data: profiles, error: profileError } = await authenticatedClient
                     .from("profiles")
                     .select("id, team_id")
                     .eq("clerk_user_id", user.id);
+
+                if (profileError) console.error("Teams: Profile Fetch Error", profileError);
 
                 const currentProfile = profiles?.find((p: any) => p.team_id) || profiles?.[0]; // Prefer one with team_id
 
@@ -101,11 +121,13 @@ const Teams = () => {
 
                 if (effectiveTeamId) {
                     // 3. Fetch Team Details
-                    const { data: teamData } = await authenticatedClient
+                    const { data: teamData, error: teamError } = await authenticatedClient
                         .from("teams")
                         .select("*")
                         .eq("id", effectiveTeamId)
                         .maybeSingle();
+
+                    if (teamError) console.error("Teams: Team Fetch Error", teamError);
 
                     if (teamData) {
                         // Check Admin Status DEFINITIVELY
@@ -118,10 +140,12 @@ const Teams = () => {
                         if (isUserAdmin) setSeatCount(teamData.total_seats);
 
                         // Fetch Members
-                        const { data: membersData } = await authenticatedClient
+                        const { data: membersData, error: membersError } = await authenticatedClient
                             .from("team_members")
                             .select("*")
                             .eq("team_id", teamData.id);
+
+                        if (membersError) console.error("Teams: Members Fetch Error", membersError);
 
                         if (membersData) {
                             if (isUserAdmin) {
@@ -155,10 +179,12 @@ const Teams = () => {
                         window.dispatchEvent(new Event("local-storage-update"));
 
                     } else {
-                        // ID exists but team not found (Orphaned)
                         console.warn("User linked to non-existent team:", effectiveTeamId);
                         setIsOrphaned(true);
                     }
+                } else {
+                    console.log("Teams: No effective team found. Redirecting to Pricing.");
+                    navigate("/pricing");
                 }
 
             } catch (err) {
@@ -173,7 +199,7 @@ const Teams = () => {
         } else if (isLoaded && !isSignedIn) {
             setLoading(false);
         }
-    }, [isLoaded, isSignedIn, user, authenticatedClient]);
+    }, [isLoaded, isSignedIn, user]);
 
     const handleLeaveTeam = async () => {
         if (!user || !authenticatedClient) return;
@@ -731,7 +757,7 @@ const Teams = () => {
                             </div>
                         )}
 
-                        {/* 2. TEAM LOGO & BRANDING */}
+                        {/* 2. TEAM LOGO & CARD STYLE */}
                         <div className={`${isAdmin ? "" : "md:col-span-3"} bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col gap-6`}>
                             {/* Logo */}
                             <div>
@@ -947,7 +973,7 @@ const Teams = () => {
                         )}
                     </div>
 
-                    {/* 4. TEAM BRANDING (Admin Only) */}
+                    {/* 4. TEAM CARD STYLE (Admin Only) */}
                     {isAdmin && (
                         <div className="space-y-8">
                             {/* Template Selection */}
@@ -1033,7 +1059,7 @@ const Teams = () => {
                             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
                                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                                     <Palette className="w-5 h-5 text-primary" />
-                                    Branding Theme
+                                    Card Theme
                                 </h2>
                                 <p className="text-sm text-slate-500 mb-6">Select a mandatory color palette for the team.</p>
 
@@ -1511,6 +1537,7 @@ const Teams = () => {
                     <p className="text-sm text-slate-400">Add seats as you grow.</p>
                 </div>
             </main>
+            <Footer />
         </div>
     );
 };

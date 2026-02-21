@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/clerk-react";
 import { Navbar } from "@/components/simplify-tap/Navbar";
+import { Footer } from "@/components/simplify-tap/Footer";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, Briefcase, Building2, Calendar, Download, Trash2, Loader2, Users } from "lucide-react";
+import { Mail, Briefcase, Building2, Calendar, Download, Trash2, Loader2, Users, Phone } from "lucide-react";
 import { format } from "date-fns";
 
 interface ContactExchange {
     id: string;
     visitor_name: string;
     visitor_email: string;
+    visitor_phone: string | null;
     visitor_job_title: string | null;
     visitor_company: string | null;
     created_at: string;
@@ -32,20 +34,21 @@ const ExchangedContacts = () => {
         if (!user) return;
 
         try {
-            // Get user's profile ID
-            const { data: profile } = await supabase
+            // Get all profiles for the user (in case of duplicates or multiple cards)
+            const { data: profiles } = await supabase
                 .from("profiles")
                 .select("id")
-                .eq("clerk_user_id", user.id)
-                .single();
+                .eq("clerk_user_id", user.id);
 
-            if (!profile) return;
+            if (!profiles || profiles.length === 0) return;
 
-            // Fetch contact exchanges
+            const profileIds = profiles.map(p => p.id);
+
+            // Fetch contact exchanges for all profiles
             const { data, error } = await supabase
                 .from("contact_exchanges")
                 .select("*")
-                .eq("card_owner_id", profile.id)
+                .in("card_owner_id", profileIds)
                 .order("created_at", { ascending: false });
 
             if (error) {
@@ -83,27 +86,24 @@ const ExchangedContacts = () => {
         }
     };
 
-    const downloadVCard = (contact: ContactExchange) => {
-        const vcard = `BEGIN:VCARD
-VERSION:3.0
-FN:${contact.visitor_name}
-EMAIL:${contact.visitor_email}
-TITLE:${contact.visitor_job_title || ''}
-ORG:${contact.visitor_company || ''}
-END:VCARD`;
-
-        const blob = new Blob([vcard], { type: "text/vcard" });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${contact.visitor_name.replace(/\s+/g, "_")}.vcf`;
-        a.click();
-        window.URL.revokeObjectURL(url);
+    const handleDownloadVCard = async (contact: ContactExchange) => {
+        const { downloadVCard: vCardUtil } = await import("@/lib/vcard");
+        await vCardUtil({
+            firstName: contact.visitor_name,
+            lastName: '',
+            company: contact.visitor_company,
+            title: contact.visitor_job_title,
+            email: contact.visitor_email,
+            phone: contact.visitor_phone,
+            website: '',
+            logoUrl: '',
+            socialLinks: []
+        });
     };
 
     const downloadAllVCards = () => {
         contacts.forEach((contact) => {
-            setTimeout(() => downloadVCard(contact), 100);
+            setTimeout(() => handleDownloadVCard(contact), 100);
         });
     };
 
@@ -202,6 +202,18 @@ END:VCARD`;
                                                         </a>
                                                     </div>
 
+                                                    {contact.visitor_phone && (
+                                                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                                                            <Phone className="w-4 h-4 text-slate-400" />
+                                                            <a
+                                                                href={`tel:${contact.visitor_phone}`}
+                                                                className="hover:text-primary hover:underline"
+                                                            >
+                                                                {contact.visitor_phone}
+                                                            </a>
+                                                        </div>
+                                                    )}
+
                                                     {contact.visitor_job_title && (
                                                         <div className="flex items-center gap-2 text-sm text-slate-600">
                                                             <Briefcase className="w-4 h-4 text-slate-400" />
@@ -230,7 +242,7 @@ END:VCARD`;
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
-                                                    onClick={() => downloadVCard(contact)}
+                                                    onClick={() => handleDownloadVCard(contact)}
                                                     className="gap-2"
                                                 >
                                                     <Download className="w-4 h-4" />
@@ -258,6 +270,7 @@ END:VCARD`;
                     )}
                 </div>
             </main>
+            <Footer />
         </div>
     );
 };

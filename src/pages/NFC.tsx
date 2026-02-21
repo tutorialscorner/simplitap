@@ -10,12 +10,10 @@ import { products } from "@/data/products";
 const NFC = () => {
   const [selectedCategory, setSelectedCategory] = useState("All");
 
+  // Dynamically compute unique categories from products
   const categories = [
     "All",
-    "Premium Metal & PVC Business Cards",
-    "Social Cards",
-    "Review Cards",
-    "Smart Standees"
+    ...new Set(products.flatMap(p => p.categories))
   ];
 
   const filteredProducts = selectedCategory === "All"

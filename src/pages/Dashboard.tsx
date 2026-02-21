@@ -4,8 +4,9 @@ import { TeamInvites } from "@/components/simplify-tap/TeamInvites";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/simplify-tap/Navbar";
+import { Footer } from "@/components/simplify-tap/Footer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Edit, Share2, Crown, CreditCard, QrCode, Copy, Check, Loader2, Globe, Download, Mail, Link as LinkIcon, Plus, ChevronDown, BarChart2, Zap, TrendingUp, Trash2, AlertTriangle, ScanLine, Users, Building2, ArrowRight, Lock } from "lucide-react";
+import { Edit, Share2, Crown, CreditCard, QrCode, Copy, Check, Loader2, Globe, Download, Mail, Link as LinkIcon, Plus, ChevronDown, BarChart2, Zap, TrendingUp, Trash2, AlertTriangle, ScanLine, Users, Building2, ArrowRight, Lock, RotateCw } from "lucide-react";
 import { useUser } from "@clerk/clerk-react";
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { useSupabase } from "@/hooks/useSupabase";
@@ -15,6 +16,7 @@ import { QRCodeGenerator } from "@/components/simplify-tap/QRCodeGenerator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AIScanner } from "@/components/simplify-tap/AIScanner";
 import { ContactsManager } from "@/components/simplify-tap/ContactsManager";
+import { PhysicalCardManager } from "@/components/simplify-tap/PhysicalCardManager";
 
 type TimeRange = '24h' | '7d' | '30d';
 
@@ -44,70 +46,223 @@ const Dashboard = () => {
     setIsPremium(!!data.isPremium);
   }, []);
 
-  // Update userData when Active Card changes
+  // 2. Update userData when Active Card changes
   useEffect(() => {
     if (cards.length > 0 && cards[activeCardIndex]) {
-      const data = cards[activeCardIndex];
-      setUserData({
-        firstName: data.first_name,
-        lastName: data.last_name,
-        title: data.job_title,
-        company: data.teams?.company_name || data.company,
-        email: data.email,
-        phone: data.phone,
-        website: data.website,
-        mapLink: data.map_link,
-        linkedin: data.linkedin,
-        twitter: data.X,
-        instagram: data.Instagram,
-        bio: data.bio,
-        isLocked: data.is_locked, // Add isLocked to userData
-        username: data.username,
-        themeId: data.teams?.theme_color || data.theme_color,
-        logoUrl: data.avatar_url,
-        bannerUrl: data.banner_url,
-        id: data.id, // Important for analytics
-        is_premium: data.is_premium,
-        companyLogoUrl: data.teams?.logo_url || data.company_logo_url,
-        isTeam: !!data.team_id,
-        socialLinks: data.social_links,
+      try {
+        const data = cards[activeCardIndex];
+        console.log("Dashboard: Mapping card data to userData...", data.id);
 
-        // Pass Style & Layout Settings
-        sectionOrder: (() => {
-          let order = (data.style?.sectionOrder || ['profile', 'bio', 'social', 'contact', 'weblinks', 'video', 'gallery'])
-            .flatMap((s: any) => s === 'media' ? ['video', 'gallery'] : s);
-
-          // Ensure 'contact' is in the order for button rendering
-          if (!order.includes('contact')) {
-            const bioIndex = order.indexOf('bio');
-            if (bioIndex !== -1) {
-              order.splice(bioIndex + 1, 0, 'contact');
-            } else {
-              const socialIndex = order.indexOf('social');
-              if (socialIndex !== -1) {
-                order.splice(socialIndex, 0, 'contact');
-              } else {
-                order.push('contact');
+        const mappedData = {
+          firstName: data.first_name,
+          lastName: data.last_name,
+          title: data.job_title,
+          company: data.teams?.company_name || data.company,
+          email: data.email,
+          phone: data.phone,
+          website: data.website,
+          mapLink: data.map_link,
+          linkedin: data.linkedin,
+          twitter: data.X,
+          instagram: data.Instagram,
+          bio: data.bio,
+          isLocked: data.is_locked,
+          username: data.username,
+          themeId: data.teams?.theme_color || data.theme_color,
+          logoUrl: data.avatar_url,
+          bannerUrl: data.banner_url,
+          id: data.id,
+          is_premium: data.is_premium,
+          companyLogoUrl: data.teams?.logo_url || data.company_logo_url,
+          isTeam: !!data.team_id,
+          socialLinks: data.social_links,
+          sectionOrder: (() => {
+            let order = (data.style?.sectionOrder || ['profile', 'bio', 'social', 'contact', 'weblinks', 'video', 'gallery'])
+              .flatMap((s: any) => s === 'media' ? ['video', 'gallery'] : s);
+            if (!order.includes('contact')) {
+              const bioIndex = order.indexOf('bio');
+              if (bioIndex !== -1) order.splice(bioIndex + 1, 0, 'contact');
+              else {
+                const socialIndex = order.indexOf('social');
+                if (socialIndex !== -1) order.splice(socialIndex, 0, 'contact');
+                else order.push('contact');
               }
             }
-          }
-          return order;
-        })(),
-        customComponents: data.style?.customComponents || [],
-        templateId: data.teams?.template_id || data.style?.templateId || "modern",
-        font: data.style?.font || "Inter",
-        cardStyle: data.style?.cardStyle || { borderRadius: 16, shadow: true, background: true },
-        visibleSections: data.style?.visibleSections || {},
-        customColors: data.teams?.style?.customColors || data.style?.customColors || { primary: '', secondary: '', background: '', text: '' },
-        pageLoader: data.style?.pageLoader || { animation: 'default', logoType: 'brand', customUrl: '' },
-      });
+            return order;
+          })(),
+          customComponents: data.style?.customComponents || [],
+          templateId: data.teams?.template_id || data.style?.templateId || "modern",
+          font: data.style?.font || "Inter",
+          cardStyle: data.style?.cardStyle || { borderRadius: 16, shadow: true, background: true },
+          visibleSections: data.style?.visibleSections || {},
+          customColors: data.teams?.style?.customColors || data.style?.customColors || { primary: '', secondary: '', background: '', text: '' },
+          pageLoader: data.style?.pageLoader || { animation: 'default', logoType: 'brand', customUrl: '' },
+          _ts: Date.now() // Force update
+        };
 
-      // Sync Premium from this specific card if needed, or rely on global check
-      if (data.is_premium) setIsPremium(true);
+        setUserData(mappedData);
+        if (data.is_premium) setIsPremium(true);
+      } catch (err) {
+        console.error("Dashboard: Error mapping userData:", err);
+      }
+    } else if (cards.length === 0 && loading === false) {
+      console.log("Dashboard: No cards, setting basic userData");
+      setUserData({ firstName: user?.firstName, lastName: user?.lastName });
     }
-  }, [cards, activeCardIndex]);
+  }, [cards, activeCardIndex, loading]);
 
-  // Handle URL params for active card (e.g. returning from Edit)
+  // 3. Listen for local updates (e.g. from Edit/Profile)
+  useEffect(() => {
+    const handleUpdate = () => {
+      console.log("🔄 Dashboard: Refreshing data...");
+      if (isSignedIn && user && supabaseClient) {
+        initDashboard();
+      }
+    };
+    window.addEventListener("local-storage-update", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+    return () => {
+      window.removeEventListener("local-storage-update", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+    };
+  }, [isSignedIn, user, supabaseClient]);
+
+  const initDashboard = async () => {
+    if (!supabaseClient || !user) return;
+    try {
+      const email = user.primaryEmailAddress?.emailAddress;
+      if (email) {
+        const { data: invite } = await supabaseClient
+          .from("team_members")
+          .select("*")
+          .eq("email", email.toLowerCase())
+          .in("status", ["active", "invited"])
+          .maybeSingle();
+        if (invite && invite.status === 'active') {
+          await supabaseClient
+            .from("profiles")
+            .update({ team_id: invite.team_id, is_premium: true })
+            .eq("clerk_user_id", user.id)
+            .is("team_id", null);
+        }
+      }
+
+      // 2. Self-Healing: Link profile if found by email but null clerk_user_id
+      const primaryEmail = user.primaryEmailAddress?.emailAddress;
+      if (primaryEmail) {
+        const { data: existingProfiles } = await supabaseClient
+          .from("profiles")
+          .select("id")
+          .eq("email", primaryEmail.toLowerCase())
+          .is("clerk_user_id", null);
+
+        if (existingProfiles && existingProfiles.length > 0) {
+          console.log("Dashboard: Auto-linking profiles by email...", existingProfiles.length);
+          await supabaseClient
+            .from("profiles")
+            .update({ clerk_user_id: user.id })
+            .in("id", existingProfiles.map(p => p.id));
+        }
+      }
+    } catch (e) {
+      console.error("Self-healing / Invite check failed", e);
+    }
+    fetchProfiles();
+  };
+
+  const fetchProfiles = async () => {
+    if (!supabaseClient || !user) return;
+    try {
+      console.log("Fetching profiles for user:", user.id);
+      let { data, error } = await supabaseClient
+        .from("profiles")
+        .select("*, teams(*)")
+        .or(`clerk_user_id.eq.${user.id},email.eq.${user.primaryEmailAddress?.emailAddress?.toLowerCase()}`)
+        .order('is_primary', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error("Supabase fetch error:", error);
+        throw error;
+      }
+
+      console.log("Fetched profiles count:", data?.length || 0);
+
+      if (data && data.length > 0) {
+        // First determine active index
+        let targetIdx = 0;
+        const params = new URLSearchParams(window.location.search);
+        const cardIdParam = params.get('cardId');
+
+        if (cardIdParam) {
+          const foundIdx = data.findIndex((c: any) => c.id === cardIdParam);
+          if (foundIdx !== -1) {
+            targetIdx = foundIdx;
+            window.history.replaceState({}, '', '/dashboard');
+          }
+        }
+
+        const globalPremium = data.some((c: any) => c.is_premium === true);
+
+        if (globalPremium) {
+          setIsPremium(true);
+          setCards(data);
+          setActiveCardIndex(targetIdx);
+
+          // Self-Healing: If user is premium, ensure all profiles are marked as premium in DB
+          const nonPremiumProfiles = data.filter((c: any) => !c.is_premium).map((c: any) => c.id);
+          if (nonPremiumProfiles.length > 0) {
+            console.log("Self-healing: Syncing premium status for cards:", nonPremiumProfiles);
+            supabaseClient
+              .from("profiles")
+              .update({ is_premium: true })
+              .in("id", nonPremiumProfiles)
+              .then(({ error }) => {
+                if (error) console.error("Self-healing sync failed:", error);
+                else {
+                  // Update local state without re-fetching
+                  const updatedCards = data.map((c: any) => ({ ...c, is_premium: true }));
+                  setCards(updatedCards);
+                }
+              });
+          }
+
+          const saved = localStorage.getItem("user_card_data");
+          const parsed = saved ? JSON.parse(saved) : {};
+          const currentTeamId = data[0].teams?.id || data[0].team_id;
+          localStorage.setItem("user_card_data", JSON.stringify({ ...parsed, isPremium: true, team_id: currentTeamId }));
+        } else {
+          setIsPremium(false);
+          // If not premium, they can still have multiple cards in DB (if transferred/old), 
+          // but we usually display the latest one they are working on (targetIdx).
+          const truncatedData = [data[targetIdx] || data[0]];
+          setCards(truncatedData);
+          setActiveCardIndex(0);
+        }
+      } else {
+        setCards([]);
+        setUserData({ firstName: user.firstName, lastName: user.lastName });
+      }
+    } catch (err: any) {
+      console.error("Dashboard error:", err);
+      setUserData({ firstName: user.firstName, lastName: user.lastName });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 4. Initial Load
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      navigate("/signin");
+      return;
+    }
+    if (user && supabaseClient) {
+      initDashboard();
+    }
+  }, [isLoaded, isSignedIn, user?.id, supabaseClient]);
+
+  // Handle URL params once cards are loaded
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const targetCardId = params.get('cardId');
@@ -115,132 +270,10 @@ const Dashboard = () => {
       const idx = cards.findIndex(c => c.id === targetCardId);
       if (idx !== -1) {
         setActiveCardIndex(idx);
-        // Clear param to clean URL
         window.history.replaceState({}, '', '/dashboard');
       }
     }
-  }, [cards]); // Run when cards are loaded
-
-  // Fetch Profiles
-  useEffect(() => {
-    if (isLoaded && !isSignedIn) {
-      navigate("/signin");
-      return;
-    }
-
-    if (user) {
-      const initDashboard = async () => {
-        // 1. Reconcile Team Invites
-        try {
-          const email = user.primaryEmailAddress?.emailAddress;
-          if (email) {
-            // Find ANY relevant invite (active or invited)
-            const { data: invite } = await supabaseClient
-              .from("team_members")
-              .select("*")
-              .eq("email", email.toLowerCase())
-              .in("status", ["active", "invited"])
-              .maybeSingle();
-
-            if (invite && invite.status === 'active') {
-              // Ensure profile is linked if already active
-              await supabaseClient
-                .from("profiles")
-                .update({ team_id: invite.team_id, is_premium: true })
-                .eq("clerk_user_id", user.id)
-                .is("team_id", null);
-            }
-          }
-        } catch (e) {
-          console.error("Invite check failed", e);
-        }
-
-        // 2. Fetch Profiles (After invite check)
-        fetchProfiles();
-      };
-
-      const fetchProfiles = async () => {
-        try {
-          // Fetch Profile AND joined Team data
-          const fetchPromise = supabaseClient
-            .from("profiles")
-            .select("*, teams(*), subscription:subscriptions!razorpay_subscription_id(*)") // Join teams and subscriptions
-            .eq("clerk_user_id", user.id)
-            .order('created_at', { ascending: true });
-
-          const timeoutPromise = new Promise<{ data: null, error: any }>((resolve) =>
-            setTimeout(() => resolve({ data: null, error: "TIMEOUT" }), 5000)
-          );
-
-          // @ts-ignore
-          const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
-
-          if (error && error !== "TIMEOUT") {
-            console.error("Dashboard profiles fetch error:", error);
-          }
-
-          if (data && data.length > 0) {
-            setCards(data);
-            setActiveCardIndex(0);
-
-            // Check Premium Logic
-            const hasPremium = data.some((c: any) => c.is_premium);
-            if (hasPremium) {
-              setIsPremium(true);
-              const saved = localStorage.getItem("user_card_data");
-              const parsed = saved ? JSON.parse(saved) : {};
-
-              const currentTeamId = data[0].teams?.id || data[0].team_id;
-
-              localStorage.setItem("user_card_data", JSON.stringify({
-                ...parsed,
-                isPremium: true,
-                team_id: currentTeamId
-              }));
-
-              // Trigger custom event for same-tab updates
-              window.dispatchEvent(new Event("local-storage-update"));
-            } else {
-              // DATABASE IS TRUTH: If DB says not premium, ensure app knows it.
-              setIsPremium(false);
-
-              // RESTRICTION: Free plan only sees 1 card.
-              const saved = localStorage.getItem("user_card_data");
-              const parsed = saved ? JSON.parse(saved) : {};
-
-              if (parsed.isPremium || parsed.team_id) {
-                localStorage.setItem("user_card_data", JSON.stringify({
-                  ...parsed,
-                  isPremium: false,
-                  team_id: null
-                }));
-                window.dispatchEvent(new Event("local-storage-update"));
-              }
-              // If they have multiple from a previous Plan, hide them.
-              setCards(data.slice(0, 1));
-            }
-          } else {
-            setCards([]);
-            setUserData({
-              firstName: user.firstName,
-              lastName: user.lastName,
-            });
-          }
-        } catch (err: any) {
-          console.error("Dashboard error:", err);
-          setUserData({
-            firstName: user.firstName,
-            lastName: user.lastName,
-          });
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      initDashboard();
-
-    }
-  }, [isLoaded, isSignedIn, user?.id]);
+  }, [cards]);
 
   // Fetch Analytics for Active Card
   useEffect(() => {
@@ -354,14 +387,24 @@ const Dashboard = () => {
   }, [rawEvents, timeRange]);
 
 
+  // --- Updated Link Logic: Always show Primary/Default Card Link ---
+  // The user wants one consistent URL for their profile, pointing to the default card.
+  const primaryCard = cards.find(c => c.is_primary) || cards[0];
+  const displayUsername = primaryCard?.username || userData?.username;
+  const displayId = primaryCard?.id || userData?.id;
+
   const cardLink = user
-    ? `${window.location.origin}/card/${userData?.username || user.id}`
+    ? displayUsername
+      ? `https://simplifytap.in/${displayUsername}`
+      : `${window.location.origin}/card/${displayId || user.id}`
     : "";
 
+  const displayLinkText = displayUsername
+    ? `simplifytap.in/${displayUsername}`
+    : `card/${(displayId || user?.id || "").slice(0, 12)}...`;
+
   const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-  const socialShareUrl = isLocalhost
-    ? `https://simplifytap.com/card/${userData?.username || user?.id}`
-    : cardLink;
+  const socialShareUrl = cardLink;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(cardLink);
@@ -544,6 +587,74 @@ const Dashboard = () => {
     }
   };
 
+  const handleSetPrimary = async (cardId: string) => {
+    if (!supabaseClient || !user) return;
+    try {
+      // Get current primary card (to check for username)
+      const { data: currentPrimary, error: oldError } = await supabaseClient
+        .from('profiles')
+        .select("id, username")
+        .eq('is_primary', true)
+        .eq('clerk_user_id', user.id)
+        .maybeSingle();
+
+      if (oldError) console.error("Could not find old primary:", oldError);
+
+      let usernameToMove = null;
+      if (currentPrimary && currentPrimary.username) {
+        // Simple check: is it a 'custom' username or a random generated one?
+        // Random ones usually end in 3 digits and have name. Assuming any username user sets is valuable.
+        // Let's move ANY username if it's set.
+        usernameToMove = currentPrimary.username;
+      }
+
+      // 1. Unset all others
+      await supabaseClient
+        .from('profiles')
+        .update({ is_primary: false })
+        .eq('clerk_user_id', user.id);
+
+      // 2. Set this one
+      // If we are moving a username, we should update it here
+      const updates: any = { is_primary: true };
+
+      if (usernameToMove && currentPrimary && currentPrimary.id !== cardId) {
+        // We need to clear the old one first to avoid unique constraint if any (Supabase usually enforces unique on username)
+        // Let's generate a temporary ID for the old card to be safe.
+        const tempUsername = `user_${currentPrimary.id.split('-')[0]}_${Math.floor(Math.random() * 1000)}`;
+
+        await supabaseClient
+          .from('profiles')
+          .update({ username: tempUsername })
+          .eq('id', currentPrimary.id);
+
+        updates.username = usernameToMove;
+      }
+
+      const { error } = await supabaseClient
+        .from('profiles')
+        .update(updates)
+        .eq('id', cardId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Default Card Set",
+        description: `This card is now your primary profile.${usernameToMove ? " Username moved." : ""}`,
+      });
+
+      // Refresh
+      initDashboard();
+    } catch (err: any) {
+      console.error("Set primary failed", err);
+      toast({
+        title: "Action Restricted",
+        description: "Default selection requires an account update.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const DeleteDialogContent = () => (
     <DialogContent className="sm:max-w-md">
       <DialogHeader>
@@ -625,11 +736,33 @@ const Dashboard = () => {
                     <SelectContent>
                       {cards.map((card, idx) => (
                         <SelectItem key={card.id} value={idx.toString()}>
-                          {card.job_title || "My Card"} ({card.company || "Personal"})
+                          {card.job_title || "My Card"} {card.is_primary ? "(Default)" : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+
+                  {/* Set as Primary Button */}
+                  {isPremium && cards.length > 1 && !cards[activeCardIndex]?.is_primary && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleSetPrimary(cards[activeCardIndex].id)}
+                      className="text-[10px] h-8 text-primary hover:text-primary hover:bg-primary/5 px-2"
+                    >
+                      Make Default
+                    </Button>
+                  )}
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => initDashboard()}
+                    title="Sync Data"
+                    className="h-8 w-8 text-slate-400 hover:text-primary transition-all ml-auto"
+                  >
+                    <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                  </Button>
                 </div>
               )}
 
@@ -648,7 +781,7 @@ const Dashboard = () => {
 
                   {/* Locked Create (If Free & Limit Reached) */}
                   {!isPremium && cards.length >= 1 && (
-                    <Link to="/plus" className="inline-flex w-full md:w-auto mt-2 md:mt-0">
+                    <Link to="/pricing" className="inline-flex w-full md:w-auto mt-2 md:mt-0">
                       <Button variant="outline" className="w-full md:w-auto gap-2 bg-white hover:bg-amber-50 text-gray-400 hover:text-amber-700 border border-dashed border-gray-300 hover:border-amber-200 justify-center h-12 md:h-10 shadow-none rounded-xl font-medium group transition-all">
                         <Lock className="w-3.5 h-3.5 group-hover:text-amber-600 transition-colors" />
                         <span className="group-hover:text-amber-700 transition-colors">Create New Card</span>
@@ -707,8 +840,8 @@ const Dashboard = () => {
                 <div className="w-full max-w-[360px] md:max-w-xs px-2 md:px-0 mb-6 md:mb-0">
                   <div className="flex items-center gap-2 p-1.5 pl-3 bg-gray-100/80 md:bg-gray-50 rounded-full md:rounded-lg border border-transparent md:border-gray-200 shadow-none md:shadow-none transition-all">
                     <Globe className="w-3.5 h-3.5 text-gray-400" />
-                    <span className="flex-1 text-xs text-gray-600 truncate font-medium font-mono">
-                      simplifytap.com/v/{userData?.username || user?.id}
+                    <span className="flex-1 text-[10px] md:text-xs text-gray-600 truncate font-medium font-mono">
+                      {displayLinkText}
                     </span>
                     <Button
                       size="icon"
@@ -729,15 +862,15 @@ const Dashboard = () => {
                 {!isPremium && !userData?.isTeam && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {/* Plus Card */}
-                    <Link to="/plus" className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 p-5 hover:shadow-md transition-all">
+                    <Link to="/pricing" className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 p-5 hover:shadow-md transition-all">
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-amber-100 rounded-lg text-amber-600">
-                          <Crown className="w-5 h-5" />
+                        <div className="p-2 bg-amber-400/10 rounded-lg text-amber-500 shadow-[0_0_15px_rgba(251,191,36,0.1)]">
+                          <Crown className="w-5 h-5 fill-amber-500/10" />
                         </div>
                         <span className="font-bold text-amber-900">Plus</span>
                       </div>
                       <p className="text-xs text-amber-800/80 mb-3 leading-relaxed">
-                        Remove branding, custom QR, and analytics.
+                        Custom card design, QR, and analytics.
                       </p>
                       <div className="flex items-center text-xs font-bold text-amber-700 group-hover:gap-2 transition-all">
                         Upgrade <ArrowRight className="w-3 h-3 ml-1" />
@@ -753,7 +886,7 @@ const Dashboard = () => {
                         <span className="font-bold text-teal-900">Teams</span>
                       </div>
                       <p className="text-xs text-teal-800/80 mb-3 leading-relaxed">
-                        Admin control & central billing. From ₹1499/mo.
+                        Admin control & central billing. From ₹1499/year.
                       </p>
                       <div className="flex items-center text-xs font-bold text-teal-700 group-hover:gap-2 transition-all">
                         Create Team <ArrowRight className="w-3 h-3 ml-1" />
@@ -1177,6 +1310,14 @@ const Dashboard = () => {
                   </div>
                 </div>
 
+                {/* Physical NFC Cards Manager */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                  <PhysicalCardManager
+                    profileId={userData?.id}
+                    onUpdate={() => initDashboard()}
+                  />
+                </div>
+
                 {/* Insights Section */}
                 <div ref={analyticsRef} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex-1 relative overflow-hidden group">
                   <div className="flex items-center justify-between mb-4 relative z-10">
@@ -1247,6 +1388,7 @@ const Dashboard = () => {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 };

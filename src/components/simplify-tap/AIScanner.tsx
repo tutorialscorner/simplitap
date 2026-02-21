@@ -4,6 +4,7 @@ import { DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/compon
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Camera, Upload, Check, AlertTriangle, ScanLine, RefreshCw } from 'lucide-react';
 import { useSupabase } from '@/hooks/useSupabase';
 import { useUser } from '@clerk/clerk-react';
@@ -24,7 +25,8 @@ export const AIScanner = ({ onSuccess, onClose }: { onSuccess?: () => void, onCl
         phone: '',
         job_title: '',
         company: '',
-        website: ''
+        website: '',
+        notes: ''
     });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -334,7 +336,8 @@ export const AIScanner = ({ onSuccess, onClose }: { onSuccess?: () => void, onCl
             phone,
             website,
             company,
-            job_title
+            job_title,
+            notes: ''
         });
     };
 
@@ -357,6 +360,7 @@ export const AIScanner = ({ onSuccess, onClose }: { onSuccess?: () => void, onCl
                 company: formData.company,
                 job_title: formData.job_title,
                 website: formData.website,
+                notes: formData.notes
             });
 
             if (error) throw error;
@@ -509,6 +513,17 @@ export const AIScanner = ({ onSuccess, onClose }: { onSuccess?: () => void, onCl
                                 value={formData.website}
                                 onChange={e => setFormData({ ...formData, website: e.target.value })}
                                 placeholder="www.example.com"
+                            />
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="notes" className="text-xs">Notes (Meeting details, follow-ups...)</Label>
+                            <Textarea
+                                id="notes"
+                                value={formData.notes}
+                                onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                                placeholder="Met at Tech Conference 2024..."
+                                className="h-20"
                             />
                         </div>
 

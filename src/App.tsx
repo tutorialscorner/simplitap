@@ -13,7 +13,7 @@ import { CartSidebar } from "@/components/simplify-tap/CartSidebar";
 const Index = lazy(() => import("./pages/Index"));
 const CreateCard = lazy(() => import("./pages/CreateCard"));
 const SignIn = lazy(() => import("./pages/SignIn"));
-const Plus = lazy(() => import("./pages/Plus"));
+// Plus page removed
 const NFC = lazy(() => import("./pages/NFC"));
 const ProductDetails = lazy(() => import("./pages/ProductDetails"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -22,9 +22,14 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const PublicCard = lazy(() => import("./pages/PublicCard"));
 const Teams = lazy(() => import("./pages/Teams"));
 const ExchangedContacts = lazy(() => import("./pages/ExchangedContacts"));
-const ActivateCard = lazy(() => import("./pages/ActivateCard"));
 const MyOrders = lazy(() => import("./pages/MyOrders"));
 const Pricing = lazy(() => import("./pages/Pricing"));
+const UsernameClaim = lazy(() => import("./pages/UsernameClaim"));
+const AdminCards = lazy(() => import("./pages/AdminCards"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const TermsConditions = lazy(() => import("./pages/TermsConditions"));
+const ShippingReturn = lazy(() => import("./pages/ShippingReturn"));
+const Contact = lazy(() => import("./pages/Contact"));
 
 const queryClient = new QueryClient();
 
@@ -45,20 +50,27 @@ const App = () => (
           <CartSidebar />
           <Suspense fallback={<AppLoader />}>
             <Routes>
+              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route path="/terms-conditions" element={<TermsConditions />} />
+              <Route path="/shipping-return" element={<ShippingReturn />} />
               <Route path="/" element={<Index />} />
               <Route path="/create" element={<CreateCard />} />
               <Route path="/signin" element={<SignIn />} />
-              <Route path="/plus" element={<Plus />} />
+              <Route path="/plus" element={<Pricing />} />
               <Route path="/teams" element={<Teams />} />
-              <Route path="/activate" element={<ActivateCard />} />
               <Route path="/nfc" element={<NFC />} />
               <Route path="/nfc/:id" element={<ProductDetails />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/exchanged-contacts" element={<ExchangedContacts />} />
               <Route path="/card/:id" element={<PublicCard />} />
+              <Route path="/admin" element={<AdminCards />} />
+              <Route path="/admin/cards" element={<AdminCards />} />
               <Route path="/orders" element={<MyOrders />} />
               <Route path="/pricing" element={<Pricing />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/username-claim" element={<UsernameClaim />} />
+              <Route path="/:id" element={<PublicCard />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

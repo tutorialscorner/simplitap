@@ -24,6 +24,7 @@ export const ExchangeContactModal = ({
     const [formData, setFormData] = useState({
         name: "",
         email: "",
+        phone: "",
         jobTitle: "",
         company: "",
     });
@@ -40,6 +41,7 @@ export const ExchangeContactModal = ({
                 card_owner_id: cardOwnerId,
                 visitor_name: formData.name,
                 visitor_email: formData.email,
+                visitor_phone: formData.phone,
                 visitor_job_title: formData.jobTitle,
                 visitor_company: formData.company,
             });
@@ -51,7 +53,7 @@ export const ExchangeContactModal = ({
                 setSubmitted(true);
 
                 // Auto-download the card owner's vCard
-                downloadVCard();
+                handleDownloadVCard();
 
                 // Close modal after 2 seconds
                 setTimeout(() => {
@@ -66,24 +68,19 @@ export const ExchangeContactModal = ({
         }
     };
 
-    const downloadVCard = () => {
-        const vcard = `BEGIN:VCARD
-VERSION:3.0
-FN:${cardOwnerData.firstName} ${cardOwnerData.lastName}
-ORG:${cardOwnerData.company || ''}
-TITLE:${cardOwnerData.title || ''}
-TEL;TYPE=CELL:${cardOwnerData.phone || ''}
-EMAIL:${cardOwnerData.email || ''}
-URL:${cardOwnerData.website || ''}
-END:VCARD`;
-
-        const blob = new Blob([vcard], { type: 'text/vcard' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${cardOwnerData.firstName}_${cardOwnerData.lastName}.vcf`;
-        a.click();
-        window.URL.revokeObjectURL(url);
+    const handleDownloadVCard = async () => {
+        const { downloadVCard: vCardUtil } = await import("@/lib/vcard");
+        await vCardUtil({
+            firstName: cardOwnerData.firstName,
+            lastName: cardOwnerData.lastName,
+            title: cardOwnerData.title,
+            company: cardOwnerData.company,
+            email: cardOwnerData.email,
+            phone: cardOwnerData.phone,
+            website: cardOwnerData.website,
+            logoUrl: cardOwnerData.logoUrl,
+            socialLinks: cardOwnerData.socialLinks
+        });
     };
 
     return (
@@ -127,6 +124,19 @@ END:VCARD`;
                                     />
                                 </div>
 
+                                <div className="space-y-1">
+                                    <Label htmlFor="phone" className="text-xs font-semibold text-slate-700 ml-0.5">Phone Number</Label>
+                                    <Input
+                                        id="phone"
+                                        type="tel"
+                                        placeholder="+91 XXXXX XXXXX"
+                                        value={formData.phone}
+                                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                        required
+                                        className="h-10 text-sm bg-slate-50 border-slate-200"
+                                    />
+                                </div>
+
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1">
                                         <Label htmlFor="jobTitle" className="text-xs font-semibold text-slate-700 ml-0.5">Job Title</Label>
@@ -135,6 +145,7 @@ END:VCARD`;
                                             placeholder="Job Title"
                                             value={formData.jobTitle}
                                             onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
+                                            required
                                             className="h-10 text-sm bg-slate-50 border-slate-200"
                                         />
                                     </div>
@@ -146,6 +157,7 @@ END:VCARD`;
                                             placeholder="Company"
                                             value={formData.company}
                                             onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                                            required
                                             className="h-10 text-sm bg-slate-50 border-slate-200"
                                         />
                                     </div>

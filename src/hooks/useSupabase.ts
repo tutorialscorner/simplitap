@@ -1,28 +1,38 @@
-import { useMemo } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { useAuth } from "@clerk/clerk-react";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { CONFIG } from "@/lib/config";
 
+let memoizedSupabaseClient: SupabaseClient | null = null;
+
+// Token cache to prevent spamming Clerk (reduces 429 chances)
+let cachedToken: string | null = null;
+let cachedAt = 0;
+const TOKEN_TTL_MS = 30_000;
+
 export function useSupabase() {
-    const { getToken, isLoaded } = useAuth();
+    const { getToken } = useAuth();
 
-    const client = useMemo(() => {
-        if (!isLoaded) return null;
+    if (!memoizedSupabaseClient) {
+        console.log("Initializing Singleton Supabase Client...");
 
-        return createClient(
+        memoizedSupabaseClient = createClient(
             CONFIG.SUPABASE_URL,
             CONFIG.SUPABASE_ANON_KEY,
             {
                 global: {
                     fetch: async (url, options = {}) => {
-                        console.log("Supabase Fetch Interceptor: Getting token...");
-                        const clerkToken = await getToken({ template: "supabase" });
-                        console.log("Supabase Fetch Interceptor: Token received?", !!clerkToken);
+                        // Cache token for 30 seconds to avoid hitting Clerk too frequently
+                        const now = Date.now();
 
-                        // @ts-ignore
-                        const headers = new Headers(options?.headers);
-                        if (clerkToken) {
-                            headers.set("Authorization", `Bearer ${clerkToken}`);
+                        if (!cachedToken || now - cachedAt > TOKEN_TTL_MS) {
+                            cachedToken = await getToken({ template: "supabase" });
+                            cachedAt = now;
+                        }
+
+                        const headers = new Headers((options as any)?.headers);
+
+                        if (cachedToken) {
+                            headers.set("Authorization", `Bearer ${cachedToken}`);
                         }
 
                         return fetch(url, {
@@ -33,7 +43,7 @@ export function useSupabase() {
                 },
             }
         );
-    }, [getToken, isLoaded]);
+    }
 
-    return client;
+    return memoizedSupabaseClient;
 }

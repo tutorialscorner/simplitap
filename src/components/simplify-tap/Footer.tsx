@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-const logo = "https://image2url.com/images/1766048702496-c162cdbc-a508-4446-afbc-21e8ac31403a.jpg";
+import logo from "@/assets/simplify-tap-logo.png";
+
 
 export const Footer = () => {
   return (
@@ -7,13 +8,9 @@ export const Footer = () => {
       <div className="container mx-auto px-4 py-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           <div className="col-span-2 md:col-span-1">
-            <Link to="/" className="flex items-center gap-2 mb-4">
-              <img src={logo} alt="Simplify Tap" className="h-8 w-auto rounded" />
-              <span className="font-semibold text-foreground">Simplify Tap</span>
+            <Link to="/" className="flex items-center mb-4">
+              <img src={logo} alt="Simplify Tap" className="h-16 w-auto" />
             </Link>
-            <p className="text-sm text-muted-foreground">
-              One Tap. One Identity.
-            </p>
           </div>
 
           <div>
@@ -25,7 +22,7 @@ export const Footer = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/plus" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <Link to="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Plus
                 </Link>
               </li>
@@ -51,9 +48,9 @@ export const Footer = () => {
                 </a>
               </li>
               <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Support
-                </a>
+                <Link to="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Contact Us
+                </Link>
               </li>
             </ul>
           </div>
@@ -62,14 +59,19 @@ export const Footer = () => {
             <h4 className="font-medium text-foreground mb-4">Legal</h4>
             <ul className="space-y-2">
               <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <Link to="/privacy-policy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Privacy
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <Link to="/terms-conditions" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Terms
-                </a>
+                </Link>
+              </li>
+              <li>
+                <Link to="/shipping-return" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Shipping & Return
+                </Link>
               </li>
             </ul>
           </div>

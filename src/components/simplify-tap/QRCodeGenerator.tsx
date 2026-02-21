@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Download, Loader2, Image as ImageIcon, Type, Palette, Upload, Lock, Crown } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useUser } from "@clerk/clerk-react";
 
 interface QRCodeGeneratorProps {
     url: string;
@@ -87,20 +88,33 @@ export const QRCodeGenerator = ({ url, username, defaultImage, premium = false }
         }
     };
 
-    const LockOverlay = () => (
-        <div className="absolute inset-0 z-20 bg-white/60 backdrop-blur-[1px] flex flex-col items-center justify-center text-center p-4">
-            <div className="bg-white p-3 rounded-full shadow-lg mb-3">
-                <Crown className="w-6 h-6 text-amber-500 fill-amber-500" />
-            </div>
-            <h3 className="font-bold text-gray-900 mb-1">Plus Feature</h3>
-            <p className="text-sm text-gray-500 mb-4 max-w-[200px]">Upgrade to customize colors, add logos, and custom text.</p>
-            <Link to="/plus">
-                <Button size="sm" className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 border-0 text-white shadow-md">
+    const LockOverlay = () => {
+        const { isSignedIn } = useUser();
+        const navigate = useNavigate();
+
+        return (
+            <div className="absolute inset-0 z-20 bg-white/60 backdrop-blur-[1px] flex flex-col items-center justify-center text-center p-4">
+                <div className="bg-white p-3 rounded-full shadow-lg mb-3">
+                    <Crown className="w-6 h-6 text-amber-500 fill-amber-500" />
+                </div>
+                <h3 className="font-bold text-gray-900 mb-1">Plus Feature</h3>
+                <p className="text-sm text-gray-500 mb-4 max-w-[200px]">Upgrade to customize colors, add logos, and custom text.</p>
+                <Button
+                    size="sm"
+                    className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 border-0 text-white shadow-md"
+                    onClick={() => {
+                        if (!isSignedIn) {
+                            navigate("/create");
+                        } else {
+                            navigate("/pricing");
+                        }
+                    }}
+                >
                     Upgrade to Plus
                 </Button>
-            </Link>
-        </div>
-    );
+            </div>
+        );
+    };
 
     return (
         <DialogContent className="sm:max-w-md md:max-w-3xl h-[90vh] md:h-auto flex flex-col p-0 gap-0 overflow-hidden">

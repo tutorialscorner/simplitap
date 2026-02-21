@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Mail, Phone, Globe, Linkedin, Twitter, MapPin, Instagram, Facebook, Share2, Save, Youtube, Github, Loader2, Circle, ArrowUpCircle, X, QrCode, Plus } from "lucide-react";
 import { themes } from "@/lib/themes";
+import logo from "@/assets/simplify-tap-logo.png";
+
 
 interface UserData {
   firstName?: string;
@@ -180,7 +182,7 @@ export const DigitalCard = ({
     return (match && match[2].length === 11) ? match[2] : null;
   };
 
-  const downloadVCard = () => {
+  const handleDownloadVCard = async () => {
     if (previewMode) return;
 
     if (onSaveContact) {
@@ -188,22 +190,19 @@ export const DigitalCard = ({
       return;
     }
 
-    const vcard = `BEGIN:VCARD
-VERSION:3.0
-FN:${firstName} ${lastName}
-ORG:${company || ''}
-TITLE:${title || ''}
-TEL;TYPE=CELL:${userData?.phone || ''}
-EMAIL:${userData?.email || ''}
-URL:${userData?.website || ''}
-END:VCARD`;
-    const blob = new Blob([vcard], { type: 'text/vcard' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${firstName}_${lastName}.vcf`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    const { downloadVCard: vCardUtil } = await import("@/lib/vcard");
+    await vCardUtil({
+      firstName,
+      lastName,
+      title,
+      company,
+      email: userData?.email,
+      phone: userData?.phone,
+      website: userData?.website,
+      logoUrl: userData?.logoUrl,
+      socialLinks: socialLinks
+    });
+
     onLinkClick?.('Save Contact');
   };
 
@@ -293,7 +292,7 @@ END:VCARD`;
 
           {/* Logo Section */}
           {userData.pageLoader.logoType === 'brand' && (
-            <img src="https://image2url.com/images/1766048702496-c162cdbc-a508-4446-afbc-21e8ac31403a.jpg" alt="Simplify Tap" className="h-12 w-auto object-contain animate-pulse" />
+            <img src={logo} alt="Simplify Tap" className="h-12 w-auto object-contain animate-pulse" />
           )}
           {userData.pageLoader.logoType === 'custom' && userData.pageLoader.customUrl && (
             <img src={userData.pageLoader.customUrl} className="h-16 w-auto object-contain animate-pulse" alt="Logo" />
@@ -369,9 +368,9 @@ END:VCARD`;
           {userData?.templateId === 'sleek' && (
             <>
               <div className={`h-28 relative shrink-0 ${bannerClass}`} style={bannerStyle}>
-                {/* Company Logo Top Right */}
+                {/* Company Logo Top Left */}
                 {premium && userData?.companyLogoUrl && (
-                  <div className="absolute top-4 right-4 z-20">
+                  <div className="absolute top-4 left-4 z-20">
                     <div className="w-10 h-10 bg-white/30 backdrop-blur-md rounded-full overflow-hidden shadow-sm">
                       <img src={userData.companyLogoUrl} className="w-full h-full object-contain" />
                     </div>
@@ -400,7 +399,7 @@ END:VCARD`;
               <div className="absolute top-0 inset-x-0 h-48 bg-gradient-to-b from-slate-50/50 to-transparent pointer-events-none" />
 
               {premium && userData?.companyLogoUrl && (
-                <div className="absolute top-6 right-6">
+                <div className="absolute top-6 left-6">
                   <img src={userData.companyLogoUrl} className="h-8 w-auto object-contain opacity-80" />
                 </div>
               )}
@@ -444,10 +443,10 @@ END:VCARD`;
                 </div>
               </div>
 
-              {/* Company Logo - Bottom Right of Header */}
+              {/* Company Logo - Top Left */}
               {premium && userData?.companyLogoUrl && (
-                <div className="flex justify-end -mt-2">
-                  <img src={userData.companyLogoUrl} className="h-10 w-auto object-contain" alt="Company" />
+                <div className="absolute top-4 left-4 z-20">
+                  <img src={userData.companyLogoUrl} className="h-8 w-auto object-contain opacity-80" />
                 </div>
               )}
 
@@ -699,7 +698,7 @@ END:VCARD`;
 
                 {/* Add to Contact Button */}
                 <button
-                  onClick={downloadVCard}
+                  onClick={handleDownloadVCard}
                   className="flex-1 h-12 rounded-full flex items-center justify-between px-2 pl-6 shadow-lg active:scale-95 transition-all duration-200 border border-white/5"
                   style={{ backgroundColor: primaryColor, color: saveButtonTextColor }}
                 >

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Navbar } from "@/components/simplify-tap/Navbar";
@@ -10,8 +10,16 @@ import { toast } from "sonner";
 import { useSignUp, useAuth, useUser } from "@clerk/clerk-react";
 import { supabase, createClerkSupabaseClient } from "@/lib/supabase";
 import { useSupabase } from "@/hooks/useSupabase";
+import logo from "@/assets/simplify-tap-logo.png";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-const logo = "https://image2url.com/images/1766048702496-c162cdbc-a508-4446-afbc-21e8ac31403a.jpg";
 
 const CreateCard = () => {
   const navigate = useNavigate();
@@ -19,6 +27,9 @@ const CreateCard = () => {
   const { getToken } = useAuth();
   const { user, isSignedIn } = useUser();
   const supabaseClient = useSupabase();
+
+  const [searchParams] = useSearchParams();
+  const cardUidParam = searchParams.get("card_uid");
 
   const [step, setStep] = useState(1); // 1 = Details, 2 = Email, 3 = Verification
   const [isLoading, setIsLoading] = useState(false);
@@ -31,6 +42,7 @@ const CreateCard = () => {
     password: "",
     code: "",
   });
+  const [showNfcPrompt, setShowNfcPrompt] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -53,18 +65,14 @@ const CreateCard = () => {
           .toLowerCase()
           .replace(/[^a-z0-9]/g, '');
 
-        // Check Team Membership Constraint
-        // 1. Check if user belongs to a team (via team_members table OR if existing profile has team_id)
-        // Actually, easiest is to check existing profiles count if we want to limit EVERYONE or just team members?
-        // User requested: "only one card" for team members.
-
-        // Let's check if they have ANY profile with a team_id
+        // Check Premium/Team Membership Constraint
         const { data: existingProfiles } = await supabaseClient
           .from("profiles")
-          .select("team_id")
+          .select("team_id, is_premium")
           .eq("clerk_user_id", user.id);
 
         const isTeamMember = existingProfiles?.some(p => p.team_id);
+        const hasPremiumProfile = existingProfiles?.some(p => p.is_premium);
 
         if (isTeamMember && existingProfiles && existingProfiles.length > 0) {
           toast.error("Team members are limited to one digital card.");
@@ -72,7 +80,7 @@ const CreateCard = () => {
           return;
         }
 
-        const { error: dbError } = await supabaseClient
+        const { data: profile, error: dbError } = await supabaseClient
           .from("profiles")
           .insert({
             clerk_user_id: user.id,
@@ -84,13 +92,30 @@ const CreateCard = () => {
             card_mail: formData.email || user.primaryEmailAddress?.emailAddress || "",
             updated_at: new Date().toISOString(),
             username: username,
-            is_premium: false // New cards start as free unless logic changes
-          });
+            is_premium: hasPremiumProfile || false
+          })
+          .select()
+          .single();
 
         if (dbError) throw dbError;
 
-        toast.success("New card created successfully!");
-        navigate("/dashboard");
+        // Permanent Mapping if cardUidParam exists
+        if (cardUidParam && profile) {
+          await supabaseClient
+            .from("cards")
+            .update({
+              profile_uid: profile.id,
+              status: "ACTIVATED",
+              activated_at: new Date().toISOString()
+            })
+            .eq("card_uid", cardUidParam);
+
+          toast.success("Card linked to new profile!");
+        } else {
+          toast.success("New digital card created!");
+        }
+
+        setShowNfcPrompt(true);
       } catch (err: any) {
         console.error("Create additional card error:", err);
         toast.error("Failed to create card: " + (err.message || "Unknown error"));
@@ -162,7 +187,6 @@ const CreateCard = () => {
       }
 
       // 3. Get Auth Token for RLS
-      // Try to get fresh token immediately (window.Clerk often has it after setActive)
       let token = null;
       try {
         // @ts-ignore
@@ -173,7 +197,6 @@ const CreateCard = () => {
       } catch (e) { console.warn("window.Clerk token fetch failed", e); }
 
       if (!token) {
-        // Fallback to hook
         token = await getToken({ template: 'supabase' });
       }
 
@@ -184,30 +207,22 @@ const CreateCard = () => {
 
       const authenticatedClient = createClerkSupabaseClient(token);
 
-      // Generate username for first user
-      // Generate username for first user
       const username = `${formData.firstName}${formData.lastName}${Math.floor(Math.random() * 1000)}`
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '');
-
-      // Check for Team Invitation
-      // We can check if their email exists in 'team_members' with status 'invited'
-      // Note: The new user might not have permission to read 'team_members' except for their own email row (if we added that policy).
-      // Assuming 'public' read or 'authenticated' read for team_members where email = user.email.
 
       let assignedTeamId = null;
       try {
         const { data: invite } = await authenticatedClient
           .from("team_members")
           .select("team_id")
-          .eq("email", formData.email.toLowerCase()) // Ensure case match
+          .eq("email", formData.email.toLowerCase())
           .maybeSingle();
 
         if (invite) {
           assignedTeamId = invite.team_id;
           console.log("Found Team Invite:", assignedTeamId);
 
-          // Optionally update status to 'active'
           await authenticatedClient
             .from("team_members")
             .update({ status: 'active' })
@@ -217,7 +232,7 @@ const CreateCard = () => {
         console.warn("Error checking team invites:", err);
       }
 
-      const { error: dbError } = await authenticatedClient
+      const { data: profile, error: dbError } = await authenticatedClient
         .from("profiles")
         .insert(
           {
@@ -230,27 +245,40 @@ const CreateCard = () => {
             card_mail: formData.email,
             updated_at: new Date().toISOString(),
             username: username,
-            team_id: assignedTeamId, // Assign Team ID
-            is_premium: !!assignedTeamId // Team members get Premium perks
+            team_id: assignedTeamId,
+            is_premium: !!assignedTeamId
           }
-        );
+        )
+        .select()
+        .single();
 
       if (dbError) {
         console.error("Supabase Write Error:", dbError);
-        // Do NOT redirect on error
         throw new Error("Failed to save profile data. Please try again.");
       }
 
-      toast.success("Account created successfully!");
+      // Permanent Mapping if cardUidParam exists
+      if (cardUidParam && profile) {
+        await authenticatedClient
+          .from("cards")
+          .update({
+            profile_uid: profile.id,
+            status: "ACTIVATED",
+            activated_at: new Date().toISOString()
+          })
+          .eq("card_uid", cardUidParam);
 
-      // 5. Redirect immediately
-      navigate("/profile");
+        toast.success("Card linked to your new profile!");
+      }
+
+      toast.success("Account created successfully!");
+      setShowNfcPrompt(true);
 
     } catch (err: any) {
       console.error(JSON.stringify(err, null, 2));
       const errorMsg = err.errors?.[0]?.message || err.message || "Verification failed.";
       toast.error(errorMsg);
-      setIsLoading(false); // Only stop loading on error.
+      setIsLoading(false);
     }
   };
 
@@ -481,6 +509,41 @@ const CreateCard = () => {
       </section>
 
       <Footer />
+
+      <Dialog open={showNfcPrompt} onOpenChange={setShowNfcPrompt}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl font-bold">🎉 Profile Created!</DialogTitle>
+            <DialogDescription className="text-center pt-2">
+              Your digital identity is now live. Want to share it instantly in the real world?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center py-4 space-y-4">
+            <div className="relative w-48 h-32 rounded-xl overflow-hidden shadow-lg transform rotate-3 transition-transform hover:rotate-0 duration-500">
+              <img
+                src="https://image2url.com/r2/bucket1/images/1767839723885-dfeb2379-1a25-4b6b-9dad-0d8e43288b39.png"
+                alt="NFC Card"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end justify-center pb-2">
+                <span className="text-white text-xs font-medium tracking-wider">PREMIUM NFC</span>
+              </div>
+            </div>
+            <p className="text-sm text-center text-muted-foreground px-4">
+              Get a professional <strong>NFC Business Card</strong>. Just tap it on any phone to share your profile instantly. No apps required.
+            </p>
+          </div>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => navigate("/dashboard")} className="sm:mr-2 w-full sm:w-auto">
+              Skip for now
+            </Button>
+            <Button onClick={() => navigate("/nfc")} className="w-full sm:w-auto bg-black hover:bg-gray-800 text-white gap-2">
+              <CreditCard className="w-4 h-4" />
+              Shop NFC Cards
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

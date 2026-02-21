@@ -89,27 +89,39 @@ app.post('/api/create-subscription', bodyParser.json(), async (req, res) => {
             return res.status(400).json({ error: "User ID is required" });
         }
 
-        // B. Dynamic Plan Creation
-        // We create a plan for the specific amount to ensure correct recurring billing.
-        const planName = `${planType.toUpperCase()} Annual ₹${totalAmountToCharge}`;
-        console.log(`Creating/Fetching dynamic plan: ${planName}`);
+        // B. Plan Selection/Creation
+        // Use fixed Plan IDs for base amounts to avoid plan spam in Razorpay.
+        const isBasePlus = (planType === 'plus' && totalAmountToCharge === 499);
+        const isBaseTeams = (planType === 'teams' && totalAmountToCharge === 1499);
 
-        try {
-            const newPlan = await razorpay.plans.create({
-                period: period,
-                interval: 1,
-                item: {
-                    name: planName,
-                    amount: totalAmountToCharge * 100, // in paise
-                    currency: "INR",
-                    description: `Annual ${planType} plan`
-                }
-            });
-            planId = newPlan.id;
-            console.log(`✅ Dynamic Plan Created: ${planId}`);
-        } catch (planError) {
-            console.error("❌ Plan Creation Failed:", planError);
-            return res.status(500).json({ error: "Failed to initialize payment plan" });
+        if (isBasePlus && process.env.RAZORPAY_PLAN_ID_PLUS) {
+            planId = process.env.RAZORPAY_PLAN_ID_PLUS;
+            console.log(`Using base Plus plan: ${planId}`);
+        } else if (isBaseTeams && process.env.RAZORPAY_PLAN_ID_TEAMS) {
+            planId = process.env.RAZORPAY_PLAN_ID_TEAMS;
+            console.log(`Using base Teams plan: ${planId}`);
+        } else {
+            // Dynamic Plan Creation for custom amounts (e.g. Teams with extra seats)
+            const planName = `${planType.toUpperCase()} Annual ₹${totalAmountToCharge}`;
+            console.log(`Creating dynamic plan: ${planName}`);
+
+            try {
+                const newPlan = await razorpay.plans.create({
+                    period: period,
+                    interval: 1,
+                    item: {
+                        name: planName,
+                        amount: totalAmountToCharge * 100, // in paise
+                        currency: "INR",
+                        description: `Annual ${planType} plan`
+                    }
+                });
+                planId = newPlan.id;
+                console.log(`✅ Dynamic Plan Created: ${planId}`);
+            } catch (planError) {
+                console.error("❌ Plan Creation Failed:", planError);
+                return res.status(500).json({ error: "Failed to initialize payment plan" });
+            }
         }
 
         // C. Create or Get Customer
@@ -483,6 +495,74 @@ app.get("/test-email", async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ ok: false, error: err.message });
+    }
+});
+
+// 3. AI Business Card Scanner
+app.post('/api/scan-card', bodyParser.json({ limit: '10mb' }), async (req, res) => {
+    try {
+        const { image } = req.body; // Base64 image
+        if (!image) return res.status(400).json({ error: "No image provided" });
+
+        console.log("Processing AI Card Scan...");
+
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+            },
+            body: JSON.stringify({
+                model: "gpt-4o",
+                messages: [
+                    {
+                        role: "user",
+                        content: [
+                            {
+                                type: "text",
+                                text: `Extract contact information from this business card image. 
+                                Return a JSON object with strictly these keys: 
+                                - name (Full Name)
+                                - business_name (Company/Business Name)
+                                - job_title
+                                - phone_1 (Primary phone)
+                                - phone_2 (Secondary phone, use '-' if not found)
+                                - email_1 (Primary email)
+                                - email_2 (Secondary email, use '-' if not found)
+                                - website
+                                - address (Full physical address)
+                                
+                                If only one phone or email is found, put it in _1 and set _2 to '-'.
+                                Do not include any markdown or extra text, just the raw JSON.`
+                            },
+                            {
+                                type: "image_url",
+                                image_url: {
+                                    url: `data:image/jpeg;base64,${image}`
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens: 500,
+                response_format: { type: "json_object" }
+            })
+        });
+
+        const data = await response.json();
+        console.log("OpenAI Response received");
+
+        if (data.error) {
+            console.error("OpenAI Error:", data.error);
+            return res.status(500).json({ error: data.error.message });
+        }
+
+        const scanResult = JSON.parse(data.choices[0].message.content);
+        res.json({ success: true, data: scanResult });
+
+    } catch (err) {
+        console.error("Scan Error:", err);
+        res.status(500).json({ error: err.message });
     }
 });
 
