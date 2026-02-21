@@ -502,15 +502,16 @@ app.get("/test-email", async (req, res) => {
 app.post("/api/scan-card", async (req, res) => {
     try {
         const { image } = req.body;
+
         if (!image) {
             return res.status(400).json({ error: "No image provided" });
         }
 
-        console.log("🔍 Step 1: Extracting raw OCR text...");
+        console.log("STEP 1: OCR extraction...");
 
-        // ============================
-        // STEP 1: RAW OCR EXTRACTION
-        // ============================
+        // ===============================
+        // STEP 1 — RAW OCR EXTRACTION
+        // ===============================
         const ocrResponse = await fetch(
             "https://api.openai.com/v1/chat/completions",
             {
@@ -528,12 +529,11 @@ app.post("/api/scan-card", async (req, res) => {
                             role: "system",
                             content: `
 You are an OCR engine.
-Extract ALL visible text from the business card exactly as printed.
+Extract ALL visible text exactly as printed.
 Preserve line breaks.
 Do NOT interpret.
 Do NOT categorize.
-Do NOT correct spelling.
-Do NOT guess missing text.
+Do NOT fix spelling.
 Return ONLY raw text.
               `,
                         },
@@ -560,17 +560,17 @@ Return ONLY raw text.
             return res.status(500).json({ error: ocrData.error.message });
         }
 
-        const rawText = ocrData.choices[0].message.content;
+        const rawText = ocrData.choices?.[0]?.message?.content;
 
         if (!rawText || rawText.trim() === "") {
             return res.status(400).json({ error: "No text detected on card" });
         }
 
-        console.log("🧠 Step 2: Parsing structured data...");
+        console.log("STEP 2: Structured parsing...");
 
-        // ============================
-        // STEP 2: STRUCTURED PARSER
-        // ============================
+        // ===============================
+        // STEP 2 — STRUCTURED PARSING
+        // ===============================
         const parseResponse = await fetch(
             "https://api.openai.com/v1/chat/completions",
             {
@@ -581,7 +581,7 @@ Return ONLY raw text.
                 },
                 body: JSON.stringify({
                     model: "gpt-4o-mini",
-                    temperature: 0,
+                    temperature: 0.4,
                     response_format: {
                         type: "json_schema",
                         json_schema: {
@@ -599,7 +599,7 @@ Return ONLY raw text.
                                     website: { type: "string" },
                                     address: { type: "string" },
                                     confidence_score: { type: "number" },
-                                    detected_language: { type: "string" },
+                                    detected_language: { type: "string" }
                                 },
                                 required: [
                                     "name",
@@ -612,59 +612,109 @@ Return ONLY raw text.
                                     "website",
                                     "address",
                                     "confidence_score",
-                                    "detected_language",
+                                    "detected_language"
                                 ],
-                                additionalProperties: false,
-                            },
-                        },
+                                additionalProperties: false
+                            }
+                        }
                     },
                     messages: [
                         {
                             role: "system",
                             content: `
-You are a strict deterministic parser.
+You are a deterministic business card information extractor.
 
-CRITICAL RULES:
-- Only use the provided text.
-- Do NOT invent missing information.
-- If a field is missing or unclear, return "-".
-- Never expand abbreviations.
-- Never fix spelling.
-- Never assume country codes.
-- Never infer company names.
-- Do NOT merge department into business_name.
-- Emails must contain "@".
-- Phones must remove internal spaces.
-- Address should merge multiple lines into one comma-separated string.
-- Provide confidence score (0-100).
-- Detect primary language from text.
-              `,
+You will receive RAW OCR text extracted from a business card.
+Use ONLY that text. Do NOT invent information.
+
+FIELD EXTRACTION RULES:
+
+1. NAME:
+- Must be a person’s name.
+- Usually appears prominently.
+- May include title prefixes (Dr., Mr., Ms.).
+- Must not be company name or slogan.
+- 2–4 words typical.
+
+2. JOB TITLE:
+- Must be a professional designation (President, CEO, Associate Professor, Manager, etc.).
+- If multiple roles exist:
+   → Prefer the main professional designation over internal roles.
+- Do NOT include company name in job_title.
+
+3. BUSINESS NAME:
+- The main organization or company the person represents.
+- If company name appears multiple times, use the full proper version.
+- Ignore slogans (e.g., “Learn to Earn”).
+- Ignore marketing text (e.g., “Trusted by 1200+ learners”).
+- Do NOT use website URL as business_name unless that is the official brand text.
+
+4. PHONE:
+- Remove spaces.
+- Preserve +.
+- If one number only → phone_2 = "-".
+
+5. EMAIL:
+- Must contain "@"
+- First valid email → email_1
+- Second → email_2
+- If one only → email_2 = "-"
+
+6. WEBSITE:
+- Extract only if explicitly written.
+- Must contain ".".
+- Do not derive from email.
+
+7. ADDRESS:
+- Merge all address lines.
+- Remove marketing text.
+- Keep full street, city, postal code.
+- Return as single comma-separated string.
+
+8. CONFIDENCE:
+- 95+ if very clear.
+- 80–94 if moderate ambiguity.
+- Below 80 only if text unclear.
+
+9. LANGUAGE:
+- Detect primary language.
+
+STRICT MODE:
+- Do not fabricate.
+- If missing, return "-".
+- Do not expand abbreviations.
+              `
                         },
                         {
                             role: "user",
-                            content: rawText,
-                        },
-                    ],
-                }),
+                            content: rawText
+                        }
+                    ]
+                })
             }
         );
 
         const parseData = await parseResponse.json();
 
         if (parseData.error) {
-            console.error("Parsing Error:", parseData.error);
+            console.error("Parse Error:", parseData.error);
             return res.status(500).json({ error: parseData.error.message });
         }
 
-        const structuredData = JSON.parse(parseData.choices[0].message.content);
+        const structuredData = JSON.parse(parseData.choices?.[0]?.message?.content || "{}");
 
-        console.log("✅ Card scan complete");
+        if (!structuredData || Object.keys(structuredData).length === 0) {
+            return res.status(500).json({ error: "Failed to parse structured output" });
+        }
+
+        console.log(`✅ Card scan successful. Confidence: ${structuredData.confidence_score}%`);
 
         return res.json({
             success: true,
             raw_text: rawText,
-            data: structuredData,
+            data: structuredData
         });
+
     } catch (err) {
         console.error("Scan Error:", err);
         return res.status(500).json({ error: err.message });
