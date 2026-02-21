@@ -253,6 +253,12 @@ export const ContactsManager = () => {
         exportToCSV(exportData, `My_Contacts_${format(new Date(), "yyyy-MM-dd")}`);
     };
 
+    const downloadAllVCards = () => {
+        contacts.forEach((contact, index) => {
+            setTimeout(() => handleDownloadVCard(contact), index * 200);
+        });
+    };
+
     return (
         <DialogContent className="sm:max-w-3xl h-[80vh] flex flex-col p-0 text-slate-900">
             <DialogHeader className="p-6 pb-2">
@@ -281,6 +287,15 @@ export const ContactsManager = () => {
                                 >
                                     <FileSpreadsheet className="w-3.5 h-3.5" />
                                     Export Excel
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={downloadAllVCards}
+                                    className="h-8 gap-2"
+                                >
+                                    <Download className="w-3.5 h-3.5" />
+                                    All vCards
                                 </Button>
                                 <span className="text-sm font-normal text-muted-foreground mx-1">
                                     {contacts.length} Contacts
